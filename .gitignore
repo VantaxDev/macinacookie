@@ -1,0 +1,17 @@
+# Local artifacts and browser/test state
+/dist/
+/artifacts/
+/source-intake/
+*.zip
+*.crx
+*.xpi
+*.log
+__pycache__/
+node_modules/
+# Credentials and local-only configuration
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
