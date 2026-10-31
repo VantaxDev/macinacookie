@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Macinacookie",
+  "version": "1.1.0",
+  "description": "Tieni i cookie sotto controllo: età osservata da 1 a 120 giorni, pulizia automatica e anteprima prima di cancellare.",
+  "permissions": ["cookies", "storage", "alarms", "contextualIdentities"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {"scripts": ["core.js", "background.js"]},
+  "action": {
+    "default_title": "Macinacookie",
+    "default_popup": "popup.html",
+    "default_icon": {"32": "icons/cookie.svg", "64": "icons/cookie.svg"}
+  },
+  "icons": {"48": "icons/cookie.svg", "96": "icons/cookie.svg"},
+  "options_ui": {"page": "dashboard.html", "open_in_tab": true},
+  "incognito": "not_allowed",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "macinacookie@local.invalid",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {"required": ["none"]}
+    },
+    "gecko_android": {"strict_min_version": "142.0"}
+  }
+}
