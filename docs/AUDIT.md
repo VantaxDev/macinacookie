@@ -85,7 +85,8 @@ SHA-256 fingerprints are not encryption: local records remain sensitive navigati
 - Narrow layout verified by browser dimensions, not an accessibility certification.
 - Firefox source unchanged; original reported Firefox/Android results were not rerun.
 - Cookie writes can race the final API removal; browser APIs cannot make that operation atomic.
-- GitHub repository visibility undecided; no repository created/pushed and no PR yet.
+- Owner authorized a public GitHub repository after review on 2026-10-31.
+  Publication includes reviewed source/docs/tests only, not the original ZIP or build artifacts.
 - No license selected; no merge, deployment, website edit or store publication performed.
 
 ## Official references consulted

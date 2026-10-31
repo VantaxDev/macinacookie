@@ -74,6 +74,11 @@ archivi originali, file locali o sorgenti Firefox. La build usa un elenco esplic
 - `docs/AUDIT.md`: provenienza, revisione e risultati attuali.
 - `docs/HANDOFF.md`: decisioni e passaggi di distribuzione ancora aperti.
 
+## Sostieni il progetto
+
+Macinacookie ti è utile? Le [donazioni](https://paypal.me/vantax) sono benvenute
+e aiutano a sostenere lo sviluppo del progetto.
+
 ## Licenza
 
 Il pacchetto ricevuto non contiene una licenza esplicita. Non è stata scelta o attribuita
