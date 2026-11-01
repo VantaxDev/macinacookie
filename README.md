@@ -61,6 +61,7 @@ compatibili per il collaudo reale. Tutti i profili e cookie di prova sono tempor
 ```sh
 node --test tests/logic.test.js
 python3 tests/chromium.py
+python3 -m unittest discover -s tests -p build_test.py -v
 python3 scripts/build.py
 ```
 
