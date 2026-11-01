@@ -99,3 +99,9 @@
   .switch-track:after{top:4px;left:4px;width:20px;height:20px}
   .switch input:checked+.switch-track:after{transform:translateX(20px)}
 }
+
+/* Business line remains readable and wraps at popup/mobile widths. */
+.page-footer{flex-wrap:wrap}
+.business-footer{font-size:11px;line-height:1.6;overflow-wrap:anywhere;white-space:normal;color:var(--muted)}
+.page-footer .business-footer{flex-basis:100%}
+.popup-body>.business-footer{margin-top:18px;padding-top:12px;border-top:1px solid var(--line)}
