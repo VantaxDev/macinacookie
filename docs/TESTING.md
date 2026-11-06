@@ -33,7 +33,7 @@ python3 tests/confirmation_recovery.py dist/macinacookie-chrome-1.2.0.zip \
   --sha256 <digest-printed-by-build> --output dist/confirmation-new-run
 ```
 
-Both package harnesses verify SHA, CRC, exact allowlist and source-byte identity
+The package harnesses verify SHA, CRC, exact allowlist and source-byte identity
 before extracting into a disposable directory. Existing output is refused.
 All browser cookies/sites/profiles are synthetic. Browser navigations are extension
 pages, not external fixture sites. The shared Driver cleans up partially acquired
