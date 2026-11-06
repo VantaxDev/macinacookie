@@ -102,7 +102,9 @@ implicitamente né usati per riscrivere lo storico.
 Macinacookie ti è utile? Le [donazioni](https://paypal.me/vantax) sono benvenute
 e aiutano a sostenere lo sviluppo del progetto.
 
-## Licenza
+## Licenza e crediti
+
+Copyright **Daniele Vantaggiato**.
 
 SPDX-License-Identifier: **GPL-3.0-only**.
 

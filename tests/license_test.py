@@ -15,6 +15,14 @@ class LicenseTests(unittest.TestCase):
         self.assertIn('SPDX-License-Identifier: GPL-3.0-only', (ROOT / 'extension/LICENSING.md').read_text())
         self.assertIn('**GPL-3.0-only**', (ROOT / 'README.md').read_text())
 
+    def test_confirmed_author_credit_in_both_source_scopes(self):
+        self.assertIn('Copyright **Daniele Vantaggiato**.', (ROOT / 'README.md').read_text())
+        for folder in ('extension', 'upstream/firefox'):
+            declaration = (ROOT / folder / 'LICENSING.md').read_text()
+            self.assertIn('Copyright Daniele Vantaggiato\n', declaration)
+            self.assertIn('SPDX-License-Identifier: GPL-3.0-only', declaration)
+            self.assertEqual((ROOT / folder / 'LICENSE').read_bytes(), (ROOT / 'LICENSE').read_bytes())
+
     def test_packaged_license_and_declaration(self):
         path = ROOT / 'dist/macinacookie-chrome-1.2.0.zip'
         with zipfile.ZipFile(path) as package:
