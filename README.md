@@ -24,8 +24,22 @@ Non è una pubblicazione su Chrome Web Store.
 Macinacookie ti è utile? Le [donazioni](https://paypal.me/vantax) sono benvenute
 e aiutano a sostenere lo sviluppo del progetto.
 
-## Licenza
+## Licenza e crediti
 
-Il pacchetto originale non include una licenza esplicita. Non è stata scelta una
-licenza al posto del titolare: la pubblicazione dei sorgenti non concede una
-licenza di riutilizzo e non equivale a dichiarare il progetto open source.
+Copyright **Daniele Vantaggiato**.
+
+SPDX-License-Identifier: **GPL-3.0-only**. Questa revisione del repository è
+distribuita sotto GNU General Public License, versione 3 soltanto. Il testo
+integrale è in [LICENSE](LICENSE); i sorgenti Firefox includono il testo e la
+[dichiarazione di licenza](upstream/firefox/LICENSING.md). Il programma è fornito
+senza garanzia, secondo la licenza.
+
+Gli avvisi applicabili di copyright, attribuzione e licenza vanno conservati
+secondo GPLv3. Non viene aggiunto un obbligo personalizzato di branding permanente
+nell'interfaccia. Questa dichiarazione non revoca eventuali concessioni precedenti
+é sostituisce licenze o diritti di terzi. I file originali Firefox restano
+conservati senza modifiche; il credito e i documenti di licenza sono aggiunti
+accanto ad essi, senza attribuire retroattivamente una licenza al vecchio archivio.
+
+Il porting Chrome e il suo pacchetto sono gestiti nel ramo separato indicato
+sopra; questo aggiornamento non ne pubblica modifiche runtime.
