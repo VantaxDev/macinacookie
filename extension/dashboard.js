@@ -4,6 +4,8 @@
   const $ = (id) => document.getElementById(id);
   const number = new Intl.NumberFormat("it-IT");
   const date = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeStyle: "short" });
+  let viewEpoch = 0;
+  let revocationWarning = null;
   let status = null;
   let preview = null;
   let selected = new Set();
@@ -13,12 +15,20 @@
   let confirmIds = [];
 
   async function request(type, fields = {}) {
+    const ticket = viewEpoch;
     const response = await chrome.runtime.sendMessage({ type, ...fields });
+    if (ticket !== viewEpoch) {
+      const error = new Error("Operazione interrotta dalla disattivazione.");
+      error.obsolete = true;
+      throw error;
+    }
     if (!response || !response.ok) throw new Error(response?.error || "Chrome non ha risposto. Riprova tra un momento.");
     return response.data;
   }
 
   function showFeedback(message, kind = "success") {
+    // A late error or generic success must not hide an unsaved revocation.
+    if (revocationWarning) { message = revocationWarning; kind = "error"; }
     const element = $("feedback");
     element.textContent = message;
     element.className = `notice${kind === "error" ? " notice-error" : kind === "warning" ? " notice-warning" : ""}`;
@@ -40,7 +50,7 @@
   }
 
   function syncSchedule() {
-    const enabled = $("auto-enabled").checked;
+    const enabled = Boolean(status?.consent?.active) && $("auto-enabled").checked;
     $("interval-value").disabled = !enabled || busy;
     $("interval-unit").disabled = !enabled || busy;
     $("auto-help").textContent = enabled ? "La pulizia seguirà l’intervallo che scegli qui sotto." : "Attivala per lasciare fare a Macinacookie.";
@@ -61,7 +71,21 @@
   }
 
   function renderStatus(data, fillForm = false) {
+    const wasObserving = Boolean(status?.consent?.active);
     status = data;
+    const observing = Boolean(data.consent?.active);
+    document.body.classList.toggle("observation-active", observing);
+    $("activate-observation").hidden = observing;
+    $("decline-observation").hidden = observing;
+    $("revoke-observation").hidden = !observing;
+    $("consent-state").textContent = observing ? "Osservazione attiva. La pulizia automatica si sceglie separatamente nelle regole." : (revocationWarning || data.warning || "Inattiva: nessun cookie viene letto prima della tua scelta.");
+    if (observing && !wasObserving) $("consent-details").open = false;
+    if (!observing) {
+      $("consent-details").open = true;
+      resetPreview();
+      if ($("confirm-dialog").open) $("confirm-dialog").close();
+      fillForm = true;
+    }
     $("stats").setAttribute("aria-busy", "false");
     $("stat-total").textContent = data.stats ? number.format(data.stats.total) : "—";
     $("stat-eligible").textContent = data.stats ? number.format(data.stats.eligible) : "—";
@@ -74,15 +98,13 @@
     $("permission-notice").hidden = data.hasPermissions;
     $("status-warning").hidden = !data.warning;
     $("status-warning").textContent = data.warning ? `Attenzione: ${data.warning}` : "";
-    if (!data.hasPermissions) setMode("Accesso da consentire");
+    if (!observing) setMode(revocationWarning ? "Inattiva in questa sessione" : "Osservazione inattiva");
+    else if (!data.hasPermissions) setMode("Accesso da consentire");
     else if (data.scanAvailable === false) setMode("Lettura non disponibile");
     else setMode(data.settings.autoEnabled ? "Pulizia automatica attiva" : "Modalità manuale", data.settings.autoEnabled);
-    const isAndroid = data.platform === "android";
-    $("schedule-help").textContent = isAndroid
-      ? "Da 1 ora a 120 giorni. Android può sospendere Chrome: la pulizia può quindi avvenire in ritardo, quando riapri il chrome."
-      : "Da 1 ora a 120 giorni. Funziona mentre Chrome è aperto; recupera le scadenze alla riapertura.";
+    $("schedule-help").textContent = "Da 1 ora a 120 giorni. Funziona mentre Chrome è aperto; recupera le scadenze alla riapertura.";
     $("saved-rule-description").textContent = data.settings.autoEnabled
-      ? `${isAndroid ? "Prossima scadenza" : "Prossima pulizia"}: ${data.nextRunAt ? safeDate(data.nextRunAt) : "in programmazione"}. ${isAndroid ? "Se Chrome è sospeso, la pulizia riprende quando lo riapri." : "Chrome deve essere aperto."}`
+      ? `Prossima pulizia: ${data.nextRunAt ? safeDate(data.nextRunAt) : "in programmazione"}. Chrome deve essere aperto.`
       : "Pulizia automatica disattivata. Decidi tu quando intervenire.";
     const run = data.lastRun;
     $("last-run").textContent = run
@@ -97,7 +119,9 @@
   }
 
   function updateControls() {
-    const ready = !!status && !busy;
+    const ready = !!status?.consent?.active && !busy;
+    $("activate-observation").disabled = busy || !status;
+    $("decline-observation").disabled = !status;
     $("max-age").disabled = !ready;
     $("max-age-range").disabled = !ready;
     $("auto-enabled").disabled = !ready;
@@ -106,7 +130,7 @@
     $("reset-settings").disabled = !ready || !dirty;
     $("preview-button").disabled = !ready || !status?.hasPermissions || status?.scanAvailable === false || dirty;
     $("preview-button").title = dirty ? "Salva o annulla le modifiche alle regole prima di creare il riepilogo." : "";
-    $("grant-permissions").disabled = busy;
+    $("grant-permissions").disabled = !ready;
     $("delete-button").disabled = !ready || !status?.hasPermissions || status?.scanAvailable === false || dirty || !preview || previewExpired() || selected.size === 0;
     $("cookie-search").disabled = busy;
     $("clear-selection").disabled = busy || selected.size === 0;
@@ -251,6 +275,11 @@
   }
 
   async function refreshStatus(fillForm = false) {
+    const consent = await request("GET_CONSENT");
+    if (!status || Boolean(status.consent?.active) !== consent.active) {
+      // Keep revocation reachable even when the following ledger/scan fails.
+      renderStatus({consent, settings: {maxAgeDays: 30, intervalHours: 24, autoEnabled: false, excludedDomains: []}, stats: null, hasPermissions: false, scanAvailable: false, trackingSince: null, nextRunAt: null, lastRun: null}, true);
+    }
     const data = await request("GET_STATUS");
     renderStatus(data, fillForm);
     return data;
@@ -318,6 +347,7 @@
       renderPreview(await request("PREVIEW"));
       try { await refreshStatus(); } catch (error) { showFeedback(`Riepilogo pronto. Statistiche non aggiornate: ${error.message}`, "warning"); }
     } catch (error) {
+      if (error.obsolete) return;
       resetPreview();
       showFeedback(error.message || "Non è stato possibile creare il riepilogo.", "error");
     } finally {
@@ -386,7 +416,7 @@
   });
 
   $("grant-permissions").addEventListener("click", async () => {
-    if (busy) return;
+    if (busy || !status?.consent?.active) return;
     try {
       const granted = await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] });
       if (!granted) {
@@ -399,6 +429,53 @@
     } catch (error) {
       showFeedback(error.message || "Non è stato possibile ottenere l’accesso ai cookie.", "error");
     } finally { setBusy(false); }
+  });
+
+  function clearObservationUI() {
+    viewEpoch++;
+    renderStatus({consent: {active: false, version: 1}, settings: {maxAgeDays: 30, intervalHours: 24, autoEnabled: false, excludedDomains: []}, stats: null, hasPermissions: false, scanAvailable: false, trackingSince: null, nextRunAt: null, lastRun: null}, true);
+  }
+  $("activate-observation").addEventListener("click", async () => {
+    if (busy || status?.consent?.active) return;
+    setBusy(true);
+    try {
+      await request("GRANT_CONSENT", {version: 1});
+      revocationWarning = null; // A new explicit successful choice resolves the old warning.
+      $("decline-observation").textContent = "Rimani inattivo";
+      $("consent-details").open = false;
+      await refreshStatus(true);
+      showFeedback("Osservazione attivata. Pulizia automatica non abilitata da questa scelta.");
+    } catch (error) { showFeedback(error.message, "error"); }
+    finally { setBusy(false); }
+  });
+  async function stopObservation() {
+    clearObservationUI(); // Available even while a scan/deletion request is pending.
+    let saved = false;
+    try {
+      await request("REVOKE_CONSENT");
+      saved = true;
+      revocationWarning = null;
+      $("decline-observation").textContent = "Rimani inattivo";
+      await refreshStatus(true);
+      showFeedback("Osservazione inattiva. Cookie e storico conservati.");
+    } catch (error) {
+      if (error.obsolete) return;
+      if (!saved) {
+        revocationWarning = error.message;
+        $("consent-state").textContent = revocationWarning;
+        $("decline-observation").textContent = "Riprova disattivazione";
+        setMode("Inattiva in questa sessione");
+      }
+      showFeedback(error.message, "error");
+    }
+  }
+  $("decline-observation").addEventListener("click", stopObservation);
+  $("revoke-observation").addEventListener("click", stopObservation);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.macinacookieConsent && status?.consent?.active) {
+      const proof = changes.macinacookieConsent.newValue;
+      if (proof?.accepted !== true || proof?.version !== 1 || typeof proof?.autoAuthorized !== "boolean" || Object.keys(proof).length !== 3) clearObservationUI();
+    }
   });
 
   setInterval(checkExpiry, 15000);

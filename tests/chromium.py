@@ -1,45 +1,9 @@
 #!/usr/bin/env python3
 """Real Chromium integration in a disposable profile. No third-party Python deps."""
-import json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request
+import base64, json, os, pathlib, shutil, socket, subprocess, sys, tempfile, time, urllib.request
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXTENSION = pathlib.Path(os.environ.get('MACINACOOKIE_EXTENSION', ROOT/'extension')).resolve()
-class Driver:
-    def __init__(self, profile):
-        s = socket.socket(); s.bind(('127.0.0.1', 0)); port = s.getsockname()[1]; s.close()
-        self.base = f'http://127.0.0.1:{port}'
-        self.log = tempfile.TemporaryFile()
-        self.proc = subprocess.Popen(['chromedriver', f'--port={port}', '--allowed-ips=127.0.0.1'], stdout=self.log, stderr=self.log)
-        for _ in range(100):
-            try: self.call('GET', '/status'); break
-            except Exception: time.sleep(.1)
-        args = ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', f'--user-data-dir={profile}', f'--load-extension={EXTENSION}']
-        if os.getuid() == 0: args.append('--no-sandbox')
-        self.sid = self.call('POST', '/session', {'capabilities': {'alwaysMatch': {'goog:chromeOptions': {'binary': shutil.which('chromium'), 'args': args}}}})['sessionId']
-    def call(self, method, path, data=None):
-        req=urllib.request.Request(self.base+path, data=json.dumps(data).encode() if data is not None else None, method=method, headers={'Content-Type':'application/json'})
-        try:
-            with urllib.request.urlopen(req, timeout=45) as r: v=json.load(r)['value']
-        except urllib.error.HTTPError as e: raise RuntimeError(e.read().decode()) from e
-        if isinstance(v,dict) and 'error' in v: raise RuntimeError(v)
-        return v
-    def command(self, path, data): return self.call('POST',f'/session/{self.sid}'+path,data)
-    def js(self, code): return self.command('/execute/async', {'script': 'const done=arguments[arguments.length-1]; (async()=>{'+code+'})().then(v=>done({value:v}),e=>done({error:String(e)}));','args':[]})
-    def run(self, code):
-        v=self.js(code)
-        assert 'error' not in v, v
-        return v.get('value')
-    def open(self):
-        for _ in range(100):
-            targets=self.command('/goog/cdp/execute', {'cmd':'Target.getTargets','params':{}})['targetInfos']
-            workers=[t for t in targets if t['type']=='service_worker' and t['url'].endswith('/service-worker.js')]
-            if workers: break
-            time.sleep(.1)
-        assert workers, targets
-        self.url=workers[0]['url'].rsplit('/',1)[0]+'/dashboard.html'
-        self.command('/url',{'url':self.url})
-    def close(self):
-        try: self.call('DELETE',f'/session/{self.sid}')
-        finally: self.proc.terminate(); self.proc.wait(timeout=10); self.log.close()
+from lifecycle import Driver
 
 checks=[]
 def check(label, condition):
@@ -51,10 +15,88 @@ def message(d, obj):
     assert r['ok'],r
     return r['data']
 
+def screenshot(d, name):
+    """Optional local store draft: actual UI, synthetic fixture, no personal profile."""
+    destination = os.environ.get('MACINACOOKIE_SCREENSHOTS')
+    if not destination:
+        return
+    output = pathlib.Path(destination)
+    output.mkdir(parents=True, exist_ok=True)
+    d.command('/goog/cdp/execute', {'cmd': 'Emulation.setDeviceMetricsOverride', 'params': {'width': 1280, 'height': 800, 'deviceScaleFactor': 1, 'mobile': False}})
+    try:
+        d.run('await document.fonts.ready; await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))); return true;')
+        result = d.command('/goog/cdp/execute', {'cmd': 'Page.captureScreenshot', 'params': {'format': 'png', 'captureBeyondViewport': False}})
+        (output / name).write_bytes(base64.b64decode(result['data']))
+    finally:
+        d.command('/goog/cdp/execute', {'cmd': 'Emulation.clearDeviceMetricsOverride', 'params': {}})
+
+def activate_observation(d):
+    return d.run('''for(let i=0;i<100;i++) {
+      const b=document.querySelector("#activate-observation");
+      if(b && !b.disabled && !b.hidden) {b.click();break;}
+      await new Promise(r=>setTimeout(r,50));
+    }
+    for(let i=0;i<100;i++) {
+      if(document.body.classList.contains("observation-active") && !document.querySelector("#preview-button").disabled)return true;
+      await new Promise(r=>setTimeout(r,50));
+    }return false;''')
+
+
+def branding_smoke():
+    """Focused UI/package regression; does not run the unchanged cleanup suite."""
+    with tempfile.TemporaryDirectory(prefix='macinacookie-branding-') as profile:
+        d = Driver(profile)
+        try:
+            d.open()
+            inactive = message(d, {'type': 'GET_STATUS'})
+            check('default inactive with visible disclosure and no stored ledger', not inactive['consent']['active'] and d.run('return !document.body.classList.contains("observation-active") && document.querySelector("#consent-details").open && !(await chrome.storage.local.get("macinacookieState")).macinacookieState;'))
+            screenshot(d, '00-disclosure-fixture.png')
+            check('explicit UI activation, automatic cleanup stays off', activate_observation(d) and not message(d, {'type': 'GET_STATUS'})['settings']['autoEnabled'])
+            check('Chrome sidebar identity', d.run('return document.querySelector(".version-label").textContent;') == 'ESTENSIONE PER CHROME')
+            check('desktop-only dashboard copy', d.run('return !/Android|ESTENSIONE PER FIREFOX/i.test(document.documentElement.textContent) && document.querySelector("#schedule-help").textContent.includes("Chrome");'))
+            d.run('''for (const [name, domain] of [["old", "old.example.test"], ["protected", "keep.example.test"], ["recent", "recent.example.test"]]) {
+              await chrome.cookies.set({url: "https://"+domain+"/", name, value: "synthetic-branding-"+name, secure: true, expirationDate: Date.now()/1000+864000});
+            } return true;''')
+            message(d, {'type': 'SAVE_SETTINGS', 'settings': {'maxAgeDays': 1, 'autoEnabled': False, 'intervalHours': 6, 'excludedDomains': ['keep.example.test']}})
+            d.run('''const {macinacookieState:s}=await chrome.storage.local.get("macinacookieState");
+              for (const [key, r] of Object.entries(s.records)) if (JSON.parse(key)[3]!=="recent") r.firstSeenAt=Date.now()-3*86400000;
+              await chrome.storage.local.set({macinacookieState:s}); return true;''')
+        finally:
+            d.close()
+        d = Driver(profile)
+        try:
+            d.open()
+            status = message(d, {'type': 'GET_STATUS'})
+            check('fixture counts and safe manual defaults', status['stats']['total']==3 and status['stats']['eligible']==1 and status['stats']['protected']==1 and not status['settings']['autoEnabled'])
+            screenshot(d, '01-overview-fixture.png')
+            check('manual preview renders from extracted package', d.run('document.querySelector("#preview-button").click(); for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r,50));if(document.querySelectorAll("#cookie-rows tr").length===1 && !document.querySelector("#preview-button").disabled)return true;} return false;'))
+            check('confirmation and cancel remain usable', d.run('document.querySelector("#delete-button").click(); return document.querySelector("#confirm-dialog").open && document.querySelector("#confirm-warning").textContent.includes("disconnetterti");'))
+            check('singular confirmation text and button', d.run('return document.querySelector("#confirm-description").textContent.startsWith("Stai per cancellare 1 cookie su 1 sito.") && document.querySelector("#confirm-delete").textContent === "Cancella 1 cookie";'))
+            screenshot(d, '02-confirmation-fixture.png')
+            d.run('document.querySelector("#cancel-delete").click(); return true;')
+            check('cancel preserves all synthetic cookies', d.run('return (await chrome.cookies.getAll({partitionKey:{}})).length===3;'))
+            message(d, {'type': 'SAVE_SETTINGS', 'settings': {'maxAgeDays': 1, 'autoEnabled': True, 'intervalHours': 6, 'excludedDomains': ['keep.example.test']}})
+            d.command('/refresh', {})
+            check('desktop automatic schedule copy', d.run('for(let i=0;i<100;i++){if(document.querySelector("#saved-rule-description").textContent.includes("Chrome deve essere aperto"))return true; await new Promise(r=>setTimeout(r,50));}return false;'))
+            d.command('/url', {'url': d.url.replace('dashboard.html', 'popup.html')})
+            check('popup renders desktop schedule without obsolete copy', d.run('for(let i=0;i<100;i++){if(document.querySelector("#popup-stats").getAttribute("aria-busy")==="false")return !/Android|Firefox/i.test(document.documentElement.textContent) && document.querySelector("#popup-next").textContent.includes("con Chrome aperto"); await new Promise(r=>setTimeout(r,50));}return false;'))
+            d.command('/url', {'url': d.url})
+            check('UI revocation returns to inactive disclosure without deleting ledger', d.run('for(let i=0;i<100;i++){if(!document.querySelector("#revoke-observation").hidden)break; await new Promise(r=>setTimeout(r,50));} document.querySelector("#revoke-observation").click(); for(let i=0;i<100;i++){const s=(await chrome.storage.local.get("macinacookieConsent")).macinacookieConsent;if(s?.accepted===false)return !document.body.classList.contains("observation-active") && !!(await chrome.storage.local.get("macinacookieState")).macinacookieState && (await chrome.cookies.getAll({partitionKey:{}})).length===3;await new Promise(r=>setTimeout(r,50));}return false;'))
+            screenshot(d, '03-inactive-after-revocation.png')
+        finally:
+            d.close()
+    print(f'{len(checks)} focused Chromium consent/UI checks passed')
+
+
+if os.environ.get('MACINACOOKIE_CHECKS') in ('branding', 'consent'):
+    branding_smoke()
+    sys.exit(0)
+
 with tempfile.TemporaryDirectory(prefix='macinacookie-chromium-') as profile:
     d=Driver(profile)
     try:
         d.open()
+        assert activate_observation(d), 'explicit fixture opt-in'
         status=message(d,{'type':'GET_STATUS'})
         check('MV3 worker loads; scan available', status['scanAvailable'] and not status['warning'])
         check('safe defaults',status['settings']['maxAgeDays']==30 and not status['settings']['autoEnabled'])
@@ -78,10 +120,12 @@ with tempfile.TemporaryDirectory(prefix='macinacookie-chromium-') as profile:
         status=message(d,{'type':'GET_STATUS'})
         check('settings, age and exclusion survive full browser restart',status['settings']['intervalHours']==6 and status['stats']['eligible']==3 and status['stats']['protected']==1)
         check('UI creates preview table',d.run('document.querySelector("#preview-button").click(); for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r,50));if(document.querySelectorAll("#cookie-rows tr").length===3 && !document.querySelector("#preview-button").disabled)return true;} return false;'))
+        screenshot(d, '01-preview-fixture.png')
         p=d.run('return (await chrome.storage.session.get("macinacookiePreview")).macinacookiePreview;')
         check('UI search filters rows',d.run('const e=document.querySelector("#cookie-search");e.value="partition";e.dispatchEvent(new Event("input"));return document.querySelectorAll("#cookie-rows tr").length===1;'))
         check('UI search preserves selected rows',d.run('const e=document.querySelector("#cookie-search");e.value="";e.dispatchEvent(new Event("input"));return document.querySelectorAll("#cookie-rows input:checked").length===3;'))
         check('UI requires confirmation',d.run('document.querySelector("#delete-button").click();return document.querySelector("#confirm-dialog").open;'))
+        screenshot(d, '02-confirmation-fixture.png')
         check('UI cancel deletes nothing',d.run('document.querySelector("#cancel-delete").click();return !document.querySelector("#confirm-dialog").open && (await chrome.cookies.getAll({partitionKey:{}})).length===5;'))
         check('preview includes normal and partitioned cookies',p['total']==3 and any(r['partitionSite'] for r in p['rows']))
         check('preview contains no raw cookie values','synthetic-secret' not in json.dumps(p))
@@ -102,8 +146,11 @@ with tempfile.TemporaryDirectory(prefix='macinacookie-chromium-') as profile:
         d.command('/goog/cdp/execute',{'cmd':'Emulation.setDeviceMetricsOverride','params':{'width':360,'height':800,'deviceScaleFactor':1,'mobile':False}})
         check('dashboard fits narrow viewport',d.run('return document.documentElement.scrollWidth<=innerWidth;'))
         # The unchanged pending cookie will be removed by overdue automatic cleanup.
+        # Authorize through the explicit control; legacy autoEnabled alone is not consent.
+        automatic_settings = dict(message(d, {'type': 'GET_STATUS'})['settings'], autoEnabled=True)
+        message(d, {'type': 'SAVE_SETTINGS', 'settings': automatic_settings})
         d.run('''const {macinacookieState:s}=await chrome.storage.local.get("macinacookieState");
-        s.settings.autoEnabled=true; s.nextRunAt=Date.now()-10000;
+        s.nextRunAt=Date.now()-10000;
         await chrome.storage.local.set({macinacookieState:s}); return true;''')
     finally: d.close()
     d=Driver(profile)
