@@ -10,7 +10,7 @@ import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXT = ROOT / 'extension'
-FILES = ['manifest.json', 'service-worker.js', 'core.js', 'background.js',
+FILES = ['LICENSE', 'LICENSING.md', 'manifest.json', 'service-worker.js', 'core.js', 'background.js',
          'dashboard.html', 'dashboard.css', 'dashboard.js', 'popup.html', 'popup.js',
          'icons/cookie.svg', *[f'icons/cookie-{n}.png' for n in (16, 32, 48, 128)]]
 

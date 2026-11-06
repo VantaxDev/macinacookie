@@ -104,6 +104,18 @@ e aiutano a sostenere lo sviluppo del progetto.
 
 ## Licenza
 
-Il pacchetto ricevuto non contiene una licenza esplicita. Non è stata scelta o attribuita
-una licenza al posto del titolare. Prima di dichiarare il progetto open source, il titolare
-può scegliere una licenza; in sua assenza non viene concessa una licenza di riutilizzo.
+SPDX-License-Identifier: **GPL-3.0-only**.
+
+Macinacookie è distribuito sotto **GNU General Public License, versione 3 soltanto**.
+Il testo integrale è in [LICENSE](LICENSE); lo ZIP include sia il testo sia la
+[dichiarazione di licenza](extension/LICENSING.md). Il programma è fornito senza
+garanzia, secondo la licenza.
+
+Mantieni gli avvisi applicabili di copyright, attribuzione e licenza nelle copie
+e nei derivati, secondo GPLv3. Questa scelta non aggiunge una clausola di credito
+permanente nell'interfaccia, non implica approvazione dei fork da parte degli
+autori e non revoca eventuali precedenti concessioni o licenze di terzi.
+
+Repository e manutenzione: [VantaxDev](https://github.com/VantaxDev). I sorgenti
+Firefox originali e i loro avvisi sono conservati in `upstream/firefox/`; nessuna
+attribuzione originale è stata rimossa o sostituita.
