@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Macinacookie · La tua dispensa digitale</title>
+  <link rel="icon" href="icons/cookie.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="dashboard.css">
+  <script src="dashboard.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Vai al contenuto</a>
+  <aside class="sidebar">
+    <a class="brand" href="#overview" aria-label="Macinacookie, riepilogo"><img src="icons/cookie.svg" width="38" height="38" alt=""><span>macina<span class="brand-light">cookie</span><small>LA TUA DISPENSA DIGITALE</small></span></a>
+    <nav aria-label="Sezioni">
+      <a class="nav-link" href="#overview"><span aria-hidden="true">◉</span> Panoramica</a>
+      <a class="nav-link" href="#settings"><span aria-hidden="true">◷</span> Regole di pulizia</a>
+      <a class="nav-link" href="#manual"><span aria-hidden="true">▤</span> Pulizia manuale</a>
+    </nav>
+    <div class="sidebar-note"><span class="privacy-symbol" aria-hidden="true">✓</span><strong>I tuoi dati restano qui.</strong><p>Nessun account. Nessun invio di dati. Solo un po’ di spazio per respirare.</p><span class="version-label">ESTENSIONE PER CHROME</span></div>
+  </aside>
+
+  <main id="main">
+    <header class="topbar"><span class="eyebrow">MENO BRICIOLE, PIÙ ORDINE</span><span id="mode-badge" class="pill"><span class="status-dot"></span> Caricamento</span></header>
+    <section id="consent-panel" class="rule-panel consent-panel" aria-labelledby="consent-title">
+      <h2 id="consent-title">Osservazione dei cookie: scegli tu</h2>
+      <details id="consent-details" open><summary>Dati trattati e controlli disponibili · informativa versione 1</summary>
+        <p>Per osservare i cookie, Macinacookie legge domini, nomi, percorsi, partizioni e valori, anche di cookie HttpOnly o di autenticazione potenzialmente sensibili. I valori sono usati solo in memoria per calcolare impronte di confronto: non vengono mostrati o salvati come valori grezzi.</p>
+        <p>Tutto avviene nel profilo locale, senza invii a sviluppatore o terzi, account o telemetria. In storage.local restano metadati, date di prima osservazione, impronte SHA-256, regole e ultimo esito. Sono dati sensibili, non anonimi e non cifrati dall’applicazione.</p>
+        <p>Il ledger non ha una scadenza generale: i record assenti vengono rimossi dopo una scansione riuscita o un evento elaborato. Le impostazioni restano finché le cambi o rimuovi i dati dell’estensione. Le anteprime sono in storage.session, utilizzabili per 10 minuti; la scadenza non garantisce la rimozione fisica immediata.</p>
+        <p>Puoi disattivare l’osservazione qui in ogni momento: si fermano nuove letture e pulizie, senza cancellare cookie o storico. Le chiamate già inviate a Chrome non possono essere annullate; i risultati tardivi vengono ignorati. Per eliminare i dati locali puoi rimuovere l’estensione da Chrome, perdendo lo storico.</p>
+        <p>Attivare l’osservazione <strong>non attiva la pulizia automatica</strong>. Per quella serve una scelta separata nelle regole. Cancellare cookie può disconnetterti dai siti e non è annullabile.</p>
+      </details>
+      <p id="consent-state" role="status">Inattiva: nessun cookie viene letto prima della tua scelta.</p>
+      <div class="button-group"><button id="activate-observation" class="button button-primary" type="button" disabled>Attiva osservazione cookie</button><button id="decline-observation" class="button button-secondary" type="button">Rimani inattivo</button><button id="revoke-observation" class="button button-secondary" type="button" hidden>Disattiva osservazione</button></div>
+    </section>
+
+    <section id="overview" class="overview" aria-labelledby="page-title">
+      <div class="hero-copy"><p class="eyebrow accent">BENVENUTO IN MACINACOOKIE</p><h1 id="page-title">Un cookie alla volta.<br><span>Il controllo torna a te.</span></h1><p class="hero-description">Scegli quanto conservare i cookie e lascia andare quelli più vecchi. Con calma, o in automatico.</p></div>
+      <div class="cookie-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="crumb crumb-one"></div><div class="crumb crumb-two"></div><div class="crumb crumb-three"></div><img src="icons/cookie.svg" width="144" height="144" alt=""><span class="art-label">FRESCHEZZA SOTTO CONTROLLO</span></div>
+    </section>
+
+    <div id="feedback" class="notice" role="status" aria-live="polite" hidden></div>
+    <div id="status-warning" class="notice notice-warning" role="status" hidden></div>
+    <section id="permission-notice" class="notice notice-warning permission-notice" hidden aria-label="Accesso ai cookie necessario"><div><strong>Consenti l’accesso ai cookie</strong><p>Macinacookie ha bisogno del permesso di accedere ai siti per leggere e cancellare i loro cookie.</p></div><button id="grant-permissions" class="button button-primary" type="button">Consenti accesso</button></section>
+
+    <section class="stats-grid" aria-label="Situazione dei cookie" aria-busy="true" id="stats">
+      <article class="stat-card"><span class="stat-label">Cookie osservati</span><strong id="stat-total" class="stat-value">—</strong><span class="stat-caption" id="stat-sites">Lettura in corso…</span></article>
+      <article class="stat-card stat-card-accent"><span class="stat-label">Pronti da macinare <span aria-hidden="true">↗</span></span><strong id="stat-eligible" class="stat-value">—</strong><span class="stat-caption" id="stat-age">Secondo la tua regola di conservazione</span></article>
+      <article class="stat-card"><span class="stat-label">Cookie protetti</span><strong id="stat-protected" class="stat-value">—</strong><span class="stat-caption">Appartengono ai siti che hai escluso</span></article>
+    </section>
+
+    <div class="observation-note"><span class="note-icon" aria-hidden="true">i</span><p><strong>Da quando sono “vecchi”?</strong> Chrome non comunica la data di creazione dei cookie. L’età parte dalla prima volta che Macinacookie li osserva, anche per quelli già presenti. Un aggiornamento del cookie non azzera questa età. <span id="tracking-since"></span></p></div>
+
+    <section id="settings" class="section-block" aria-labelledby="settings-title">
+      <div class="section-heading"><div><p class="eyebrow">01 / LE TUE REGOLE</p><h2 id="settings-title">Decidi cosa conservare.</h2></div><span id="dirty-badge" class="small-tag" hidden>Modifiche da salvare</span></div>
+      <form id="settings-form" class="settings-grid">
+        <div class="panel rule-panel">
+          <div class="panel-heading"><span class="number-icon" aria-hidden="true">01</span><div><h3>Tempo di conservazione</h3><p>I cookie diventano eliminabili dopo questa età.</p></div></div>
+          <label class="age-input-label" for="max-age">Conserva per <span class="age-number-wrap"><input id="max-age" name="maxAgeDays" type="number" min="1" max="120" step="1" value="30" required inputmode="numeric"><span>giorni</span></span></label>
+          <input id="max-age-range" class="age-range" type="range" min="1" max="120" step="1" value="30" aria-label="Giorni di conservazione">
+          <div class="range-labels"><span>1 giorno</span><span>120 giorni</span></div>
+          <div class="panel-divider"></div>
+          <div class="toggle-row"><div><label for="auto-enabled" class="field-title">Pulizia automatica</label><p id="auto-help">Attivala per lasciare fare a Macinacookie.</p></div><label class="switch"><input type="checkbox" id="auto-enabled" name="autoEnabled" aria-describedby="auto-help"><span class="switch-track" aria-hidden="true"></span></label></div>
+          <div id="schedule-controls" class="schedule-controls"><label for="interval-value">Ripeti ogni</label><input id="interval-value" type="number" min="1" max="120" step="1" value="1" required inputmode="numeric" aria-label="Intervallo tra le pulizie"><select id="interval-unit" aria-label="Unità dell’intervallo"><option value="24">giorni</option><option value="1">ore</option></select></div>
+          <p id="schedule-help" class="field-hint">Da 1 ora a 120 giorni. Funziona mentre Chrome è aperto; recupera le scadenze alla riapertura.</p>
+        </div>
+        <div class="panel exclusion-panel">
+          <div class="panel-heading"><span class="number-icon" aria-hidden="true">02</span><div><h3>Siti da proteggere</h3><p>Questi cookie restano al loro posto.</p></div></div>
+          <label class="field-title" for="excluded-domains">Domini esclusi <span class="optional">facoltativo</span></label>
+          <textarea id="excluded-domains" name="excludedDomains" rows="5" placeholder="esempio.it&#10;posta.esempio.it" spellcheck="false" autocomplete="off" aria-describedby="exclusions-help"></textarea>
+          <p id="exclusions-help" class="field-hint">Un dominio per riga, senza https:// o percorsi. Ogni dominio protegge anche i suoi sottodomini, nelle pulizie manuali e automatiche.</p>
+          <div class="protection-note"><span aria-hidden="true">✓</span><p>Utile per i siti sui quali vuoi mantenere l’accesso e le preferenze.</p></div>
+        </div>
+        <div class="form-footer"><p id="saved-rule-description">Caricamento delle preferenze…</p><div class="button-group"><button id="reset-settings" type="button" class="button button-quiet" disabled>Annulla modifiche</button><button id="save-settings" class="button button-primary" type="submit" disabled>Salva le regole <span aria-hidden="true">→</span></button></div></div>
+      </form>
+    </section>
+
+    <section id="manual" class="section-block" aria-labelledby="manual-title">
+      <div class="section-heading"><div><p class="eyebrow">02 / L’ULTIMA PAROLA È TUA</p><h2 id="manual-title">Guarda prima di macinare.</h2><p class="section-description">Controlla i cookie eliminabili e scegli quali cancellare.</p></div><button id="preview-button" class="button button-secondary" type="button" disabled>Crea riepilogo <span aria-hidden="true">↗</span></button></div>
+      <div class="panel preview-panel">
+        <div id="preview-intro" class="empty-state"><span class="empty-cookie" aria-hidden="true">◌</span><h3>Nessuna briciola sfugge al controllo.</h3><p>Crea un riepilogo per vedere i cookie che superano l’età impostata. La scansione non cancella nulla.</p><span class="small-tag">I siti protetti sono sempre esclusi</span></div>
+        <div id="preview-loading" class="empty-state" role="status" hidden><span class="spinner" aria-hidden="true"></span><h3>Prepariamo il riepilogo…</h3><p>Stiamo controllando età e siti protetti.</p></div>
+        <div id="preview-empty" class="empty-state" hidden><span class="empty-cookie empty-success" aria-hidden="true">✓</span><h3>Per ora, tutto fresco.</h3><p id="preview-empty-text">Nessun cookie supera l’età impostata, al di fuori dei siti protetti.</p><span class="small-tag">Puoi tornare più tardi</span></div>
+        <div id="preview-results" hidden>
+          <div class="preview-summary"><div><strong id="preview-total">—</strong><span>cookie eliminabili</span></div><div><strong id="preview-sites">—</strong><span>siti coinvolti</span></div><div><strong id="preview-oldest">—</strong><span>età massima osservata</span></div></div>
+          <div class="table-tools"><label class="search-field"><span aria-hidden="true">⌕</span><input id="cookie-search" type="search" placeholder="Cerca sito, nome o percorso…" aria-label="Cerca nel riepilogo" autocomplete="off"></label><span id="visible-count" class="muted"></span></div>
+          <div id="preview-expired" class="notice notice-warning inline-notice" role="status" hidden>Il riepilogo è scaduto. Creane uno nuovo prima di cancellare.</div>
+          <p id="table-scroll-help" class="table-scroll-help">Scorri la tabella verso destra per leggere tutti i dettagli.</p>
+          <div class="table-scroll" role="region" tabindex="0" aria-label="Elenco dei cookie eliminabili" aria-describedby="table-scroll-help"><table><caption class="sr-only">Cookie eliminabili. Seleziona i cookie da cancellare.</caption><thead><tr><th class="checkbox-cell"><label class="checkbox-target"><input id="select-visible" type="checkbox" aria-label="Seleziona tutti i cookie visibili"></label></th><th scope="col">Sito e cookie</th><th scope="col">Età osservata</th><th scope="col">Durata</th><th scope="col">Contesto</th></tr></thead><tbody id="cookie-rows"></tbody></table></div>
+          <div id="no-search-results" class="search-empty" hidden>Nessun cookie corrisponde alla ricerca.</div>
+          <div class="selection-footer"><div><strong id="selected-count">0 selezionati</strong><p id="preview-validity" class="field-hint"></p><button id="clear-selection" class="text-button" type="button">Deseleziona tutti</button></div><button id="delete-button" class="button button-danger" type="button" disabled>Macina selezionati <span aria-hidden="true">→</span></button></div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="page-footer"><p id="last-run">Nessuna pulizia ancora registrata.</p><span>Macinacookie · Fatto per alleggerire.</span></footer>
+  </main>
+
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description confirm-warning">
+    <div class="dialog-body"><span class="dialog-icon" aria-hidden="true">!</span><p class="eyebrow accent">UN ULTIMO CONTROLLO</p><h2 id="confirm-title">Pronto a fare pulizia?</h2><p id="confirm-description"></p><div id="confirm-domains" class="domain-chips" aria-label="Siti coinvolti"></div><div id="confirm-warning" class="notice notice-warning">Cancellare i cookie può disconnetterti dai siti e rimuovere alcune preferenze. L’operazione non si può annullare.</div><p class="field-hint">Prima di cancellare ricontrolleremo i cookie: quelli cambiati dopo il riepilogo o non più eliminabili verranno saltati.</p><div class="dialog-actions"><button id="cancel-delete" type="button" class="button button-secondary">Torna al riepilogo</button><button id="confirm-delete" type="button" class="button button-danger">Cancella i cookie</button></div></div>
+  </dialog>
+</body>
+</html>

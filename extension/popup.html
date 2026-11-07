@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Macinacookie</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <script src="popup.js" defer></script>
+</head>
+<body class="popup-body">
+  <div class="brand popup-brand"><img src="icons/cookie.svg" width="40" height="40" alt=""><span>macina<span class="brand-light">cookie</span><small>UN COOKIE ALLA VOLTA.</small></span></div>
+  <p class="popup-tagline">Un po’ di ordine nella tua navigazione.</p>
+  <div id="popup-stats" class="popup-stats" aria-label="Riepilogo cookie" aria-busy="true"><div class="popup-stat"><strong id="popup-total">—</strong><span>cookie osservati</span></div><div class="popup-stat"><strong id="popup-eligible">—</strong><span>pronti da macinare</span></div></div>
+  <span id="popup-mode" class="pill"><span class="status-dot"></span> Lettura in corso…</span>
+  <p id="popup-next" class="popup-next">Prepariamo il tuo riepilogo.</p>
+  <p id="popup-error" class="popup-error" role="alert" hidden></p>
+  <p id="popup-warning" class="notice notice-warning" role="status" hidden></p>
+  <button id="open-dashboard" class="button button-primary" type="button">Apri Macinacookie <span aria-hidden="true">↗</span></button>
+  <button id="popup-retry" class="text-button popup-refresh" type="button" hidden>Riprova a leggere i cookie</button>
+  <p class="popup-footnote">L’età si conta dalla prima osservazione. Nella pagina completa puoi scegliere le regole e controllare i cookie prima di cancellarli.</p>
+</body>
+</html>
