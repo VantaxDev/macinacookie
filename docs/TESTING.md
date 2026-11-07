@@ -29,9 +29,11 @@ python3 tests/lifecycle.py dist/macinacookie-chrome-1.2.0.zip \
   --sha256 <digest-printed-by-build> --output dist/lifecycle-new-run
 python3 tests/worker_lifecycle.py dist/macinacookie-chrome-1.2.0.zip \
   --sha256 <digest-printed-by-build> --output dist/worker-new-run
+python3 tests/confirmation_recovery.py dist/macinacookie-chrome-1.2.0.zip \
+  --sha256 <digest-printed-by-build> --output dist/confirmation-new-run
 ```
 
-Both package harnesses verify SHA, CRC, exact allowlist and source-byte identity
+The package harnesses verify SHA, CRC, exact allowlist and source-byte identity
 before extracting into a disposable directory. Existing output is refused.
 All browser cookies/sites/profiles are synthetic. Browser navigations are extension
 pages, not external fixture sites. The shared Driver cleans up partially acquired
@@ -56,5 +58,24 @@ UI/storage/cookie observations; neither proves real OS process cleanup or cancel
 API operations already dispatched to Chrome.
 
 Not established by these checks: branded Google Chrome, minimum Chrome 130,
-Windows/macOS, long OS suspension, retained confirmation-dialog recovery across
-multiple tabs, actual Store delivery, or legal/security/Store certification.
+Windows/macOS, long OS suspension, actual Store delivery, or legal/security/Store
+certification.
+
+## Retained confirmation dialog recovery
+
+The focused `confirmation_recovery.py` acceptance keeps the real dashboard and its
+confirmation dialog in the original tab while CDP stops only its extension worker.
+A separate popup tab wakes the worker; its target is observed before worker
+inspection, and a new execution context is then required. The popup status request
+is the intended wake source. Switching back must retain the original document/dialog: a native click
+on the old confirmation must announce an actionable expiry error, clear stale
+selection, preserve the synthetic cookie and focus the enabled preview button.
+A fresh UI preview must then support cancel without deletion and one successful
+synthetic deletion. Automatic cleanup remains unauthorized throughout.
+
+This fills the retained-dialog path absent from the API-only worker replay test.
+It checks DOM alert/status roles and focus, not spoken output with real screen
+reader software or exhaustive cross-tab interleavings. The harness saves two real
+synthetic UI screenshots, not retouched images or independent pixel approval. The harness creates a temporary launcher that disables GPU/egress;
+no system configuration, dependency or server is installed. Use the same existing
+WebSocket-capable Node selection as the worker harness. Existing output is refused.
