@@ -11,8 +11,10 @@
 
 ## Remaining decisions and distribution
 
-Public visibility is resolved. A source license has not been chosen; the original
-archive contains no license file. No license was invented or granted on the owner's behalf.
+Public visibility is resolved. The project owner has selected GPL-3.0-only.
+The complete license is in LICENSE; Chrome packages include LICENSE and
+LICENSING.md. The original archive had no explicit license; existing original
+source/notices are preserved, and no prior third-party grants are revoked.
 
 The Chrome port remains in review; do not merge or publish to an extension store without
 separate authority. Upload the ZIP only through an approved release/distribution route;

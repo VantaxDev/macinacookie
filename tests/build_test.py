@@ -13,6 +13,7 @@ import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED = {
+    'LICENSE', 'LICENSING.md',
     'manifest.json', 'service-worker.js', 'core.js', 'background.js',
     'dashboard.html', 'dashboard.css', 'dashboard.js', 'popup.html', 'popup.js',
     'icons/cookie.svg', *[f'icons/cookie-{n}.png' for n in (16, 32, 48, 128)],
@@ -90,6 +91,17 @@ class BuildTests(unittest.TestCase):
                 output = self.root / 'dist' / f'macinacookie-chrome-{version}.zip'
                 with zipfile.ZipFile(output) as package:
                     self.assertEqual(json.loads(package.read('manifest.json'))['version'], version)
+
+    def test_missing_license_notices_preserve_existing_package(self):
+        self.seed_output()
+        for name in ('LICENSE', 'LICENSING.md'):
+            with self.subTest(name=name):
+                path = self.root / 'extension' / name
+                content = path.read_bytes()
+                path.unlink()
+                self.assertNotEqual(self.build().returncode, 0)
+                self.assert_preserved()
+                path.write_bytes(content)
 
     def test_missing_file_preserves_existing_package(self):
         self.seed_output()

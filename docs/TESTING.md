@@ -14,6 +14,7 @@ node tests/qa-regressions.js
 python3 tests/driver_cleanup_test.py
 python3 -m unittest discover -s tests -p build_test.py -v
 python3 scripts/build.py
+python3 -m unittest discover -s tests -p license_test.py -v
 ```
 
 The builder prints a SHA-256 digest for the deterministic extension-only ZIP.

@@ -93,3 +93,12 @@ SHA-256 fingerprints are not encryption: local records remain sensitive navigati
 
 - [Chrome cookies / partitions and selector APIs](https://developer.chrome.com/docs/extensions/reference/api/cookies)
 - [MV3 service worker migration and synchronous listeners](https://developer.chrome.com/docs/extensions/develop/migrate/to-service-workers)
+
+## Licensing update — 2026-11-06
+
+The project owner selected GPL-3.0-only. LICENSE contains the full unmodified
+GPLv3 text; Chrome packages include that text and an explicit version-only
+declaration. Earlier license-selection statements above describe the original
+audit date, not the current licensing state. Original Firefox files/notices
+remain byte-identical. No third-party terms, earlier grants, or author identities
+were replaced, and no custom mandatory UI-credit condition was added.

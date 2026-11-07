@@ -300,7 +300,7 @@ def main():
             for name in FILES:
                 assert archive.read(name)==(ROOT/'extension'/name).read_bytes(),name
             archive.extractall(EXTENSION)
-        check('current ZIP SHA/CRC/allowlist and 14 source-identical files',True)
+        check(f'current ZIP SHA/CRC/allowlist and {len(FILES)} source-identical files',True)
         manifest=(EXTENSION/'manifest.json').read_bytes()
         try:
             lifecycle(temp/'restart-profile',args.output,json.loads(manifest)['version'])
