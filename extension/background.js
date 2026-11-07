@@ -248,7 +248,7 @@
         return;
       }
       try {
-        if (stored.version !== 1 || !stored.records || typeof stored.records !== "object" || Array.isArray(stored.records) || !Number.isFinite(stored.trackingSince)) throw new Error();
+        if (stored.version !== 1 || !stored.records || typeof stored.records !== "object" || Array.isArray(stored.records) || !Number.isFinite(stored.trackingSince) || stored.trackingSince < 0) throw new Error();
         const settings = Core.normalizeSettings(stored.settings);
         if (!autoAuthorized) settings.autoEnabled = false;
         const records = {};

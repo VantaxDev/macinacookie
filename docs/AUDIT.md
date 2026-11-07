@@ -1,5 +1,11 @@
 # Chrome port audit — 2026-10-31
 
+Historical baseline audit: statements about unchanged Firefox files and test
+results below describe that checkpoint. The November consolidation adds the
+separate Firefox business footer and GPL notices; current Chrome acceptance
+procedures are in [TESTING.md](TESTING.md). Historical results do not certify
+later runtime bytes or Store readiness.
+
 ## Provenance and archive handling
 
 - Received archive: `macinacookie-sorgenti-1.0.1.zip` (61,997 bytes).

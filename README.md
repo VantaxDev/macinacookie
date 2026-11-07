@@ -86,7 +86,8 @@ archivi originali, file locali o sorgenti Firefox. La build usa un elenco esplic
 prima di scrivere il pacchetto.
 
 - `extension/`: versione Chrome con service worker, logica pura, popup e pannello.
-- `upstream/firefox/`: sorgenti Firefox 1.1.0 conservati senza modifiche.
+- `upstream/firefox/`: versione Firefox 1.1.0 separata dal port Chrome; conserva
+  gli avvisi originali e include il footer aziendale e i documenti di licenza.
 - `docs/upstream/`: documentazione originaria; i risultati riportati sono dichiarazioni
   del pacchetto ricevuto, non collaudi ripetuti durante questo porting.
 - `docs/AUDIT.md`: provenienza, revisione e risultati attuali.
@@ -96,6 +97,8 @@ Gli ID dello storico vengono verificati rispetto alla chiave cookie al caricamen
 uno stato incoerente sospende la pulizia senza riscrivere i dati locali.
 Anche le impronte devono essere stringhe SHA-256: gli array non vengono convertiti
 implicitamente né usati per riscrivere lo storico.
+Una data iniziale di tracciamento negativa viene rifiutata senza scansioni o
+riscritture dello storico; il valore zero resta valido.
 
 ## Sostieni il progetto
 

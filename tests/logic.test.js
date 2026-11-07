@@ -176,3 +176,26 @@ test('authorized persisted consent resumes observation without reopening UI',asy
  assert.equal(f.removed.length,0);
  assert.equal(Object.keys(f.local[STATE_KEY].records).length,1);
 });
+
+test('negative tracking epoch fails closed before scans or storage writes',async()=>{
+ const f=await oldFixture();
+ f.local[STATE_KEY].trackingSince=-1;
+ const before=clone(f.local), scans=f.audit.length;
+ const app=createApp(f.api,{now:()=>1700000000000+31*Core.DAY_MS,crypto:webcrypto});
+ await assert.rejects(app.ready,/dati di Macinacookie non sono leggibili/);
+ assert.equal((await app.request({type:'PREVIEW'},f.sender)).ok,false);
+ assert.deepEqual(f.local,before);
+ assert.equal(f.audit.length,scans);
+ assert.deepEqual(f.removed,[]);
+ assert.equal(f.session[PREVIEW_KEY],undefined);
+});
+
+test('zero tracking epoch remains valid on restart',async()=>{
+ const f=await fixture();
+ f.local[STATE_KEY].trackingSince=0;
+ const app=createApp(f.api,{now:()=>1700000000000,crypto:webcrypto});
+ await app.ready;
+ assert.equal((await app.request({type:'GET_STATUS'},f.sender)).ok,true);
+ assert.equal(f.local[STATE_KEY].trackingSince,0);
+ assert.deepEqual(f.removed,[]);
+});

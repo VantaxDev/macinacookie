@@ -3,11 +3,12 @@
 ## Repository and package
 
 - Public repository authorized by the owner: **VantaxDev/macinacookie**.
-- `main` contains the unchanged Firefox source import and a donation-linked README.
-- `feat/chrome-mv3` contains the Chrome port, intended for an unmerged review PR.
+- The consolidation integrates the reviewed Chrome port and its safety updates,
+  attributed GPL declarations, Firefox business footer and acceptance harnesses.
+- `extension/` is the Chrome product; `upstream/firefox/` remains separate.
 - Reproducible package: `dist/macinacookie-chrome-1.2.0.zip` (local artifact, not in Git).
 - Run `python3 scripts/build.py` to rebuild and print its SHA-256.
-- No merge, deployment, website modification or store publication is authorized here.
+- Repository consolidation does not constitute a deployment or store release.
 
 ## Remaining decisions and distribution
 
@@ -16,8 +17,8 @@ The complete license is in LICENSE; Chrome packages include LICENSE and
 LICENSING.md. The original archive had no explicit license; existing original
 source/notices are preserved, and no prior third-party grants are revoked.
 
-The Chrome port remains in review; do not merge or publish to an extension store without
-separate authority. Upload the ZIP only through an approved release/distribution route;
+Publishing to an extension store still requires separate authority.
+Upload the ZIP only through an approved release/distribution route;
 it is currently a local build, not a store release. Original source archives, browser
 profiles, private workspace memory, local configuration and build outputs are not published.
 
