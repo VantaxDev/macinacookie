@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import tempfile
 import zipfile
 
@@ -30,7 +31,12 @@ def build():
             manifest['incognito'] != 'not_allowed'):
         raise ValueError('Manifest does not match reviewed safety constraints')
     version = manifest['version']
-    if not isinstance(version, str) or not version or any(c not in '0123456789.' for c in version):
+    # Chrome accepts one to four canonical decimal components, each <= 65535,
+    # with at least one nonzero component. Reject before creating any output.
+    if (not isinstance(version, str) or
+            re.fullmatch(r'(0|[1-9][0-9]{0,4})(\.(0|[1-9][0-9]{0,4})){0,3}', version) is None or
+            any(int(part) > 65535 for part in version.split('.')) or
+            not any(int(part) for part in version.split('.'))):
         raise ValueError('Invalid package version')
     out = ROOT / 'dist' / f'macinacookie-chrome-{version}.zip'
     out.parent.mkdir(exist_ok=True)

@@ -8,6 +8,8 @@
   }
 })(globalThis, function (Core) {
   "use strict";
+  const CONSENT_KEY = "macinacookieConsent";
+  const CONSENT_VERSION = 1;
   const STATE_KEY = "macinacookieState";
   const PREVIEW_KEY = "macinacookiePreview";
   const ALARM_NAME = "macinacookie-cleanup";
@@ -17,10 +19,22 @@
   function createApp(chrome, options = {}) {
     const now = options.now || (() => Date.now());
     const cryptoAPI = options.crypto || globalThis.crypto;
+    const raw = chrome;
+    let active = false;
+    let autoAuthorized = false;
+    let generation = 0;
+    let operationEpoch = 0;
+    let gateError = null;
+    let gateRevision = 0;
+    let revocationRevision = 0;
+    let controls = Promise.resolve();
     let state = null;
     let queue = Promise.resolve();
     let lastError = null;
     let platform = null;
+    // storage.session survives MV3 worker termination. A confirmation token
+    // authorizes only the worker instance that actually created its preview.
+    let livePreviewToken = null;
     // Updated synchronously by the event listener, including while a scan or
     // deletion awaits Chrome. This protects removal/recreation with same value.
     const epochs = new Map();
@@ -36,7 +50,11 @@
     }
 
     function enqueue(operation) {
-      const result = queue.then(operation);
+      const ticket = generation;
+      const result = queue.then(() => {
+        operationEpoch = ticket;
+        return operation();
+      });
       queue = result.catch(() => undefined);
       return result;
     }
@@ -47,18 +65,120 @@
       return result;
     }
 
+    function checkActive(ticket = operationEpoch) {
+      if (!active || ticket !== generation) throw problem("Osservazione inattiva. Attivala dopo aver letto l’informativa.");
+    }
+
+    // Every sensitive API checks both before dispatch and after completion.
+    // Already-dispatched Chrome API calls cannot be cancelled; their results
+    // are discarded, and no subsequent read/write/removal may be dispatched.
+    function guarded(owner, name) {
+      return async (...args) => {
+        const ticket = operationEpoch;
+        checkActive(ticket);
+        const result = await owner[name](...args);
+        checkActive(ticket);
+        return result;
+      };
+    }
+    chrome = {...raw,
+      storage: {...raw.storage,
+        local: {...raw.storage.local, get: guarded(raw.storage.local, "get"), set: guarded(raw.storage.local, "set")},
+        session: {...raw.storage.session, get: guarded(raw.storage.session, "get"), set: guarded(raw.storage.session, "set"), remove: guarded(raw.storage.session, "remove")}},
+      cookies: {...raw.cookies, getAll: guarded(raw.cookies, "getAll"), get: guarded(raw.cookies, "get"), remove: guarded(raw.cookies, "remove")},
+      permissions: {...raw.permissions, contains: guarded(raw.permissions, "contains")},
+      runtime: {...raw.runtime, getPlatformInfo: guarded(raw.runtime, "getPlatformInfo")},
+      alarms: {...raw.alarms, clear: guarded(raw.alarms, "clear"), create: guarded(raw.alarms, "create")}};
+
+    function consentStatus() {
+      return {active, version: CONSENT_VERSION, warning: gateError};
+    }
+    function inactiveStatus() {
+      return {consent: consentStatus(), settings: {...Core.DEFAULT_SETTINGS, excludedDomains: []},
+        stats: null, trackingSince: null, nextRunAt: null, lastRun: null,
+        hasPermissions: false, platform: null, scanAvailable: false,
+        warning: gateError || "Osservazione inattiva: nessun cookie viene letto."};
+    }
+    function control(operation) {
+      const result = controls.then(operation);
+      controls = result.catch(() => undefined);
+      return result;
+    }
+    function deactivate() {
+      livePreviewToken = null;
+      active = false;
+      autoAuthorized = false;
+      generation++;
+      state = null;
+      platform = null;
+      epochs.clear();
+    }
+    async function changeConsent(accept, version) {
+      if (accept && version !== CONSENT_VERSION) throw problem("Rileggi l’informativa corrente prima di attivare.");
+      if (accept && active) return consentStatus();
+      if (!accept) deactivate(); // Synchronous, before the operation/control queues.
+      const ticket = generation;
+      const revokeTicket = revocationRevision;
+      function checkGrant() {
+        if (ticket !== generation || revokeTicket !== revocationRevision) throw problem("Attivazione annullata dalla disattivazione. Serve una nuova scelta esplicita.");
+      }
+      return control(async () => {
+        await gateReady;
+        if (accept) {
+          await queue; // Drain cancelled operations before a new activation.
+          checkGrant();
+        }
+        try {
+          if (accept) {
+            await raw.storage.session.remove(PREVIEW_KEY);
+            checkGrant();
+            await raw.alarms.clear(ALARM_NAME);
+            checkGrant();
+          }
+          await raw.storage.local.set({[CONSENT_KEY]: {version: CONSENT_VERSION, accepted: accept, autoAuthorized: false}});
+          if (!accept) {
+            const cleanup = await Promise.allSettled([raw.storage.session.remove(PREVIEW_KEY), raw.alarms.clear(ALARM_NAME)]);
+            if (cleanup.some(result => result.status === "rejected")) throw Error("cleanup");
+          }
+          if (accept) {
+            checkGrant();
+            generation++;
+            active = true;
+            autoAuthorized = false;
+            state = null;
+            backgroundTask(initialize);
+          }
+          gateError = null;
+          return consentStatus();
+        } catch (_) {
+          if (accept && ticket === generation) deactivate();
+          gateError = accept ? "Attivazione non riuscita. L’osservazione resta inattiva; riprova." :
+            "Osservazione fermata in questa sessione. Disattivazione non salvata o pulizia temporanea non riuscita: riprova prima di riavviare Chrome.";
+          throw problem(gateError);
+        }
+      });
+    }
+
     function privateStore(id) {
       // Incognito access is prohibited by the manifest. Unknown stores fail closed.
       return typeof id !== "string" || id !== "0";
     }
 
     async function hash(text) {
+      checkActive();
       const bytes = new TextEncoder().encode(text);
-      const digest = await cryptoAPI.subtle.digest("SHA-256", bytes);
+      const digest = await guarded(cryptoAPI.subtle, "digest")("SHA-256", bytes);
+      checkActive();
       return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
     }
 
+    function cookieHash(cookie) {
+      checkActive();
+      return hash(Core.fingerprintInput(cookie));
+    }
+
     function randomToken() {
+      checkActive();
       if (cryptoAPI.randomUUID) return cryptoAPI.randomUUID();
       return Array.from(cryptoAPI.getRandomValues(new Uint8Array(24)), byte => byte.toString(16).padStart(2, "0")).join("");
     }
@@ -66,15 +186,17 @@
     async function persist(next) {
       try { await chrome.storage.local.set({[STATE_KEY]: next}); }
       catch (_) { throw problem("Impossibile salvare i dati locali. La pulizia è stata interrotta: nessun altro cookie verrà cancellato."); }
+      checkActive();
       state = next;
     }
 
     async function sessionGet() {
-      try { return (await chrome.storage.session.get(PREVIEW_KEY))[PREVIEW_KEY]; }
+      try { const result = await chrome.storage.session.get(PREVIEW_KEY); checkActive(); return result[PREVIEW_KEY]; }
       catch (_) { throw problem("Impossibile leggere il riepilogo. Riapri Macinacookie e riprova."); }
     }
 
     async function clearPreview() {
+      livePreviewToken = null; // Fail closed even if session cleanup fails.
       try { await chrome.storage.session.remove(PREVIEW_KEY); }
       catch (_) { throw problem("Impossibile aggiornare il riepilogo. La cancellazione non è stata avviata."); }
     }
@@ -85,6 +207,7 @@
     }
 
     async function requirePermissions() {
+      checkActive();
       if (!await hasPermissions()) throw problem("Concedi l’accesso ai siti per leggere e cancellare i cookie.");
     }
 
@@ -97,6 +220,7 @@
       } catch (_) {
         throw problem("Impossibile riconoscere la versione di Chrome in uso. Riapri Macinacookie e riprova; la pulizia è sospesa.");
       }
+      checkActive();
       if (!info || !["win", "mac", "linux", "cros"].includes(info.os)) {
         throw problem("La piattaforma di Chrome non è riconosciuta. La pulizia è sospesa per evitare una lettura incompleta dei cookie.");
       }
@@ -112,23 +236,34 @@
     }
 
     async function load() {
+      checkActive();
       if (state) return;
       let stored;
-      try { stored = (await chrome.storage.local.get(STATE_KEY))[STATE_KEY]; }
+      try { const result = await chrome.storage.local.get(STATE_KEY); checkActive(); stored = result[STATE_KEY]; }
       catch (_) { throw problem("Impossibile leggere i dati locali. La pulizia è sospesa."); }
-      if (!stored) {
+      // Only an absent key is a first install; corrupt values must not reset
+      // the ledger or silently discard protected domains.
+      if (stored === undefined) {
         await persist({version: 1, settings: Core.normalizeSettings(Core.DEFAULT_SETTINGS), records: {}, trackingSince: now(), nextRunAt: null, lastRun: null});
         return;
       }
       try {
         if (stored.version !== 1 || !stored.records || typeof stored.records !== "object" || Array.isArray(stored.records) || !Number.isFinite(stored.trackingSince)) throw new Error();
         const settings = Core.normalizeSettings(stored.settings);
+        if (!autoAuthorized) settings.autoEnabled = false;
         const records = {};
         for (const [key, record] of Object.entries(stored.records)) {
+          checkActive();
           const identity = JSON.parse(key);
-          if (!Array.isArray(identity) || identity.length !== 6 || !record || !Number.isFinite(record.firstSeenAt) || record.firstSeenAt < 0 || !/^[a-f0-9]{64}$/.test(record.fingerprint) || !/^[a-f0-9]{64}$/.test(record.id)) throw new Error();
-          if (!privateStore(identity[0])) records[key] = {id: record.id, firstSeenAt: record.firstSeenAt, fingerprint: record.fingerprint};
+          if (!Array.isArray(identity) || identity.length !== 6 || !record || !Number.isFinite(record.firstSeenAt) || record.firstSeenAt < 0 || typeof record.fingerprint !== "string" || !/^[a-f0-9]{64}$/.test(record.fingerprint) || typeof record.id !== "string" || !/^[a-f0-9]{64}$/.test(record.id)) throw new Error();
+          if (!privateStore(identity[0])) {
+            // Row selection is keyed by ID: never trust a persisted ID that
+            // could alias another cookie in the preview.
+            if (record.id !== await hash(key)) throw new Error();
+            records[key] = {id: record.id, firstSeenAt: record.firstSeenAt, fingerprint: record.fingerprint};
+          }
         }
+        checkActive();
         state = {version: 1, settings, records, trackingSince: stored.trackingSince, nextRunAt: Number.isFinite(stored.nextRunAt) ? stored.nextRunAt : null, lastRun: stored.lastRun || null};
       } catch (_) {
         throw problem("I dati di Macinacookie non sono leggibili. La pulizia è sospesa per proteggere i cookie.");
@@ -136,6 +271,7 @@
     }
 
     async function scan() {
+      checkActive();
       await requirePermissions();
       await getPlatform();
       // Chrome has no Firefox containers. Omitting storeId selects the current
@@ -143,6 +279,7 @@
       const results = await Promise.allSettled([
         chrome.cookies.getAll({partitionKey: {}})
       ]);
+      checkActive();
       if (results.some(result => result.status !== "fulfilled" || !Array.isArray(result.value))) {
         throw problem("La lettura dei cookie è incompleta. I dati precedenti sono conservati e la pulizia è sospesa.");
       }
@@ -159,9 +296,10 @@
       for (let index = 0; index < pending.length; index += 100) {
         const batch = await Promise.all(pending.slice(index, index + 100).map(async ([key, cookie]) => {
           const previous = state.records[key];
-          const [id, fingerprint] = await Promise.all([previous ? previous.id : hash(key), hash(Core.fingerprintInput(cookie))]);
+          const [id, fingerprint] = await Promise.all([previous ? previous.id : hash(key), cookieHash(cookie)]);
           return {key, cookie, record: {id, fingerprint, firstSeenAt: firstSeen(key, previous, observedAt)}};
         }));
+        checkActive();
         entries.push(...batch);
       }
       const records = {};
@@ -173,6 +311,7 @@
       // permission set still permits a complete view.
       await requirePermissions();
       await persist({...state, records});
+      checkActive();
       lastError = null;
       return entries;
     }
@@ -194,6 +333,7 @@
 
     async function status() {
       await load();
+      checkActive();
       let permitted = false;
       let entries = null;
       let warning = null;
@@ -212,8 +352,9 @@
         warning = explain(error);
         lastError = warning;
       }
+      checkActive();
       return {
-        settings: state.settings, stats: entries === null ? null : Core.summarize(entries, state.settings, now()),
+        consent: consentStatus(), settings: state.settings, stats: entries === null ? null : Core.summarize(entries, state.settings, now()),
         trackingSince: state.trackingSince, nextRunAt: state.nextRunAt, lastRun: state.lastRun,
         hasPermissions: permitted, platform, scanAvailable: entries !== null, warning: warning || lastError
       };
@@ -221,7 +362,8 @@
 
     async function restoreAlarm() {
       await chrome.alarms.clear(ALARM_NAME);
-      if (state.settings.autoEnabled && state.nextRunAt !== null) {
+      checkActive();
+      if (autoAuthorized && state.settings.autoEnabled && state.nextRunAt !== null) {
         await chrome.alarms.create(ALARM_NAME, {when: Math.max(state.nextRunAt, now() + 1000)});
       }
     }
@@ -230,7 +372,14 @@
       let settings;
       try { settings = Core.normalizeSettings(input); }
       catch (error) { throw problem(error.message); }
+      await control(async () => {
+        checkActive();
+        await chrome.storage.local.set({[CONSENT_KEY]: {version: CONSENT_VERSION, accepted: true, autoAuthorized: settings.autoEnabled}});
+        checkActive();
+        autoAuthorized = settings.autoEnabled;
+      });
       await clearPreview();
+      checkActive();
       const changedSchedule = settings.autoEnabled !== state.settings.autoEnabled || settings.intervalHours !== state.settings.intervalHours;
       const nextRunAt = !settings.autoEnabled ? null : changedSchedule || state.nextRunAt === null ? now() + settings.intervalHours * Core.HOUR_MS : state.nextRunAt;
       await persist({...state, settings, nextRunAt});
@@ -240,6 +389,7 @@
 
     async function makePreview() {
       const entries = await scan();
+      checkActive();
       const createdAt = now();
       const selected = candidates(entries, createdAt);
       selected.sort((a, b) => a.cookie.domain.localeCompare(b.cookie.domain) || a.cookie.name.localeCompare(b.cookie.name) || a.cookie.path.localeCompare(b.cookie.path));
@@ -250,12 +400,16 @@
       };
       try { await chrome.storage.session.set({[PREVIEW_KEY]: preview}); }
       catch (_) { throw problem("Impossibile salvare il riepilogo. Nessun cookie è stato cancellato."); }
+      checkActive();
+      livePreviewToken = preview.token;
       return {...preview, settingsSignature: undefined, rows: preview.rows.map(({key, fingerprint, ...row}) => row)};
     }
 
     async function removeCandidates(selected, entries, result = {deleted: 0, skipped: 0, failed: 0}) {
+      checkActive();
       const current = new Map(entries.map(entry => [entry.key, entry]));
       for (const item of selected) {
+        checkActive();
         const entry = current.get(item.key);
         const record = state.records[item.key];
         const effectiveRecord = record && {...record, firstSeenAt: firstSeen(item.key, record, now())};
@@ -268,19 +422,22 @@
         const before = epochs.get(item.key)?.version || 0;
         let actual;
         try { actual = await chrome.cookies.get(details); }
-        catch (_) { result.failed++; continue; }
-        if (!actual || Core.cookieIdentity(actual) !== item.key || await hash(Core.fingerprintInput(actual)) !== item.fingerprint) {
+        catch (_) { checkActive(); result.failed++; continue; }
+        checkActive();
+        if (!actual || Core.cookieIdentity(actual) !== item.key || await cookieHash(actual) !== item.fingerprint) {
           result.skipped++;
           continue;
         }
         await requirePermissions();
+        checkActive();
         if ((epochs.get(item.key)?.version || 0) !== before || !Core.eligibility({...record, firstSeenAt: firstSeen(item.key, record, now())}, actual, state.settings, now())) {
           result.skipped++;
           continue;
         }
         let removed;
         try { removed = await chrome.cookies.remove(details); }
-        catch (_) { result.failed++; continue; }
+        catch (_) { checkActive(); result.failed++; continue; }
+        checkActive();
         if (!removed) { result.skipped++; continue; }
         // A non-null response means a deletion already happened, even if a
         // following validation or persistence step must stop the batch.
@@ -297,8 +454,12 @@
     }
 
     async function deletePreview(message) {
+      if (typeof message.token !== "string" || message.token !== livePreviewToken) {
+        throw problem("Il riepilogo è scaduto. Genera un nuovo riepilogo.");
+      }
       await requirePermissions();
       const preview = await sessionGet();
+      checkActive();
       if (!preview || typeof message.token !== "string" || message.token !== preview.token || now() >= preview.expiresAt || JSON.stringify(state.settings) !== preview.settingsSignature) {
         throw problem("Il riepilogo è scaduto o le impostazioni sono cambiate. Genera un nuovo riepilogo.");
       }
@@ -329,7 +490,8 @@
 
     async function runAutomatic() {
       await load();
-      if (!state.settings.autoEnabled || state.nextRunAt === null || state.nextRunAt > now()) {
+      checkActive();
+      if (!autoAuthorized || !state.settings.autoEnabled || state.nextRunAt === null || state.nextRunAt > now()) {
         await restoreAlarm();
         return;
       }
@@ -340,12 +502,14 @@
       let warning = null;
       try {
         const entries = await scan();
+        checkActive();
         const selected = candidates(entries, now()).map(entry => ({key: entry.key, ...entry.record}));
         await removeCandidates(selected, entries, result);
       } catch (error) {
         warning = explain(error);
         lastError = warning;
       }
+      checkActive();
       // Schedule once per completed attempt; opening the popup never postpones it.
       const nextRunAt = now() + state.settings.intervalHours * Core.HOUR_MS;
       const lastRun = {at: now(), mode: "auto", ...result};
@@ -355,12 +519,14 @@
     }
 
     async function runDueAutomatic() {
-      if (state.settings.autoEnabled && state.nextRunAt !== null && state.nextRunAt <= now()) {
+      checkActive();
+      if (autoAuthorized && state.settings.autoEnabled && state.nextRunAt !== null && state.nextRunAt <= now()) {
         await runAutomatic();
       }
     }
 
     function noteChange(change) {
+      if (!active) return; // Do not even inspect the event payload without opt-in.
       const cookie = change.cookie;
       if (!cookie || privateStore(cookie.storeId)) return;
       const key = Core.cookieIdentity(cookie);
@@ -381,13 +547,14 @@
       epochs.set(key, epoch);
       backgroundTask(async () => {
         await load();
+        checkActive();
         if (epochs.get(key)?.version !== epoch.version) return;
         if (change.removed && change.cause === "overwrite") return;
         const records = {...state.records};
         if (change.removed) delete records[key];
         else {
           const previousRecord = records[key];
-          const [id, fingerprint] = await Promise.all([previousRecord ? previousRecord.id : hash(key), hash(Core.fingerprintInput(cookie))]);
+          const [id, fingerprint] = await Promise.all([previousRecord ? previousRecord.id : hash(key), cookieHash(cookie)]);
           if (epochs.get(key)?.version !== epoch.version) return;
           records[key] = {id, fingerprint, firstSeenAt: firstSeen(key, previousRecord, at)};
         }
@@ -406,9 +573,22 @@
 
     function request(message, sender) {
       if (!trusted(sender)) return Promise.resolve({ok: false, error: "Richiesta non autorizzata."});
+      if (message?.type === "GET_CONSENT") {
+        // Control-plane status must remain available even if a scan is pending.
+        return gateReady.then(() => ({ok: true, data: consentStatus()}));
+      }
+      if (message?.type === "GRANT_CONSENT" || message?.type === "REVOKE_CONSENT") {
+        if (sender.url.split(/[?#]/, 1)[0] !== chrome.runtime.getURL("dashboard.html")) return Promise.resolve({ok: false, error: "Apri l’informativa nel pannello."});
+        return changeConsent(message.type === "GRANT_CONSENT", message.version)
+          .then(data => ({ok: true, data}), error => ({ok: false, error: explain(error)}));
+      }
       return enqueue(async () => {
         try {
+          await gateReady;
+          if (message?.type === "GET_STATUS" && !active) return {ok: true, data: inactiveStatus()};
+          checkActive();
           await load();
+          checkActive();
           if (!message || typeof message.type !== "string") throw problem("Richiesta non valida.");
           let data;
           switch (message.type) {
@@ -418,6 +598,7 @@
             case "DELETE_PREVIEW": data = await deletePreview(message); break;
             default: throw problem("Operazione non riconosciuta.");
           }
+          checkActive();
           return {ok: true, data};
         } catch (error) {
           lastError = explain(error);
@@ -427,16 +608,57 @@
     }
 
     async function initialize() {
+      await gateReady;
+      if (!active) return;
+      checkActive();
       await load();
+      checkActive();
       if (state.settings.autoEnabled && state.nextRunAt === null) {
         await persist({...state, nextRunAt: now() + state.settings.intervalHours * Core.HOUR_MS});
       } else if (!state.settings.autoEnabled && state.nextRunAt !== null) {
         await persist({...state, nextRunAt: null});
       }
       await restoreAlarm();
+      checkActive();
       if (state.settings.autoEnabled && state.nextRunAt <= now()) await runAutomatic();
       else if (await hasPermissions()) await scan();
     }
+
+    function validProof(proof) {
+      return Boolean(proof && typeof proof === "object" && !Array.isArray(proof) &&
+        Object.keys(proof).sort().join(",") === "accepted,autoAuthorized,version" &&
+        proof.version === CONSENT_VERSION && typeof proof.accepted === "boolean" &&
+        typeof proof.autoAuthorized === "boolean" && (proof.accepted || !proof.autoAuthorized));
+    }
+    raw.storage.onChanged?.addListener((changes, area) => {
+      if (area !== "local" || !Object.hasOwn(changes, CONSENT_KEY)) return;
+      gateRevision++;
+      const proof = changes[CONSENT_KEY].newValue;
+      // Revocation is authoritative even while a grant is still inactive.
+      // Positive events from our own accepted=true write are NOT revocations.
+      if (!validProof(proof) || !proof.accepted) revocationRevision++;
+      if (active && (!validProof(proof) || !proof.accepted)) {
+        deactivate();
+        // Cleanup only: never inspect or delete the durable ledger.
+        Promise.allSettled([raw.storage.session.remove(PREVIEW_KEY), raw.alarms.clear(ALARM_NAME)]);
+      } else if (active && !proof.autoAuthorized) {
+        autoAuthorized = false;
+      }
+      // A storage event can revoke/constrain, never grant consent or auto-cleanup.
+    });
+    const initialRevision = gateRevision;
+    const gateTicket = generation;
+    const gateReady = (async () => {
+      try {
+        const proof = (await raw.storage.local.get(CONSENT_KEY))[CONSENT_KEY];
+        if (generation !== gateTicket || gateRevision !== initialRevision) return;
+        const valid = validProof(proof);
+        active = Boolean(valid && proof.accepted);
+        autoAuthorized = Boolean(active && proof.autoAuthorized);
+      } catch (_) {
+        gateError = "Impossibile leggere l’attivazione. Nessun cookie viene letto; riprova.";
+      }
+    })();
 
     // Chrome MV3 requires all event listeners to be registered synchronously.
     // Callback bridge supports Chrome versions before Promise message listeners.
@@ -446,15 +668,15 @@
     });
     chrome.cookies.onChanged.addListener(noteChange);
     chrome.alarms.onAlarm.addListener(alarm => {
-      if (alarm.name === ALARM_NAME) backgroundTask(runAutomatic);
+      if (active && autoAuthorized && alarm.name === ALARM_NAME) backgroundTask(runAutomatic);
     });
     chrome.runtime.onStartup.addListener(() => backgroundTask(initialize));
     chrome.runtime.onInstalled.addListener(() => backgroundTask(initialize));
     chrome.permissions.onAdded.addListener(() => backgroundTask(initialize));
-    chrome.permissions.onRemoved.addListener(() => backgroundTask(async () => { await clearPreview(); }));
+    chrome.permissions.onRemoved.addListener(() => { if (active) backgroundTask(async () => { await clearPreview(); }); });
     const ready = backgroundTask(initialize);
     return {ready, settled: () => queue, request};
   }
 
-  return {createApp, STATE_KEY, PREVIEW_KEY, ALARM_NAME};
+  return {createApp, STATE_KEY, PREVIEW_KEY, ALARM_NAME, CONSENT_KEY, CONSENT_VERSION};
 });

@@ -18,13 +18,24 @@ né un pacchetto firmato: va prima estratto. Non disinstallare l'estensione per 
 altrimenti si perde lo storico. La versione Chrome ha un archivio separato da Firefox:
 non importa i cookie, le impostazioni o le età dal profilo Firefox.
 
+## Attivazione dell'osservazione
+
+L'osservazione è inizialmente **inattiva**, anche per profili esistenti senza
+un opt-in corrente valido. Apri il pannello, leggi i dati trattati e scegli
+**Attiva osservazione cookie** oppure **Rimani inattivo**. Prima della scelta
+si legge solo la chiave minima del gate, non ledger o cookie. Puoi disattivare
+l'osservazione dal pannello senza cancellare cookie o storico. Le chiamate già
+inviate a Chrome non sono annullabili; i risultati tardivi vengono ignorati.
+L'attivazione non autorizza l'automatico, che richiede una scelta separata nelle
+regole; nessun consenso reale è stato acquisito durante i test sintetici.
+
 ## Uso e limiti
 
 - Età osservata da **1 a 120 giorni**, predefinita 30; non è la data di creazione o l'ultima visita.
 - I cookie presenti alla prima osservazione partono da zero giorni.
 - Frequenza automatica da **1 a 2880 ore**, indipendente dall'età scelta.
 - I domini esclusi proteggono anche i sottodomini.
-- L'anteprima scade dopo 10 minuti e viene consumata una sola volta; modifiche alle regole la invalidano.
+- L'anteprima scade dopo 10 minuti e viene consumata una sola volta; modifiche alle regole, disattivazione o riavvio del service worker la invalidano.
 - La rimozione ricontrolla identità, valore tramite impronta, età, permessi e partizione.
 - Cancellare cookie può disconnetterti dai siti. Non esiste annullamento o copia dei valori.
 - Chrome deve poter eseguire l'estensione: chiusura, sospensione, timer e limiti del browser
@@ -51,22 +62,28 @@ La CSP impedisce connessioni in uscita dalle pagine e dal service worker.
 I valori dei cookie vengono letti solo in memoria per generare impronte SHA-256; non sono
 mostrati né persistiti. I dati locali contengono domini, nomi, percorsi, contesti, date e impronte:
 sono comunque dati di navigazione sensibili. Le anteprime sono in `storage.session`.
+Se lo stato persistito è corrotto, la pulizia viene sospesa senza azzerare
+automaticamente impostazioni e storico; solo una chiave assente avvia un nuovo archivio.
 Nessun accesso alla navigazione in incognito è consentito dal manifest.
 
 ## Sviluppo e verifiche
+
+Le verifiche riproducibili sono descritte in [TESTING.md](docs/TESTING.md).
+I risultati dipendono dalla piattaforma e non equivalgono a una certificazione Store.
 
 Nessun `npm install` richiesto. Strumenti: Node.js 18+, Python 3, Chromium e ChromeDriver
 compatibili per il collaudo reale. Tutti i profili e cookie di prova sono temporanei.
 
 ```sh
-node --test tests/logic.test.js
+node --test tests/logic.test.js tests/consent.test.js
 python3 tests/chromium.py
 python3 -m unittest discover -s tests -p build_test.py -v
 python3 scripts/build.py
 ```
 
 Lo ZIP riproducibile viene scritto in `dist/` (escluso dal Git), senza test, documenti,
-archivi originali, file locali o sorgenti Firefox. La build usa un elenco esplicito di file.
+archivi originali, file locali o sorgenti Firefox. La build usa un elenco esplicito di file e rifiuta versioni manifest non valide
+prima di scrivere il pacchetto.
 
 - `extension/`: versione Chrome con service worker, logica pura, popup e pannello.
 - `upstream/firefox/`: sorgenti Firefox 1.1.0 conservati senza modifiche.
@@ -74,6 +91,11 @@ archivi originali, file locali o sorgenti Firefox. La build usa un elenco esplic
   del pacchetto ricevuto, non collaudi ripetuti durante questo porting.
 - `docs/AUDIT.md`: provenienza, revisione e risultati attuali.
 - `docs/HANDOFF.md`: decisioni e passaggi di distribuzione ancora aperti.
+
+Gli ID dello storico vengono verificati rispetto alla chiave cookie al caricamento:
+uno stato incoerente sospende la pulizia senza riscrivere i dati locali.
+Anche le impronte devono essere stringhe SHA-256: gli array non vengono convertiti
+implicitamente né usati per riscrivere lo storico.
 
 ## Sostieni il progetto
 

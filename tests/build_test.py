@@ -63,6 +63,34 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(self.build().returncode, 0)
         self.assertEqual(original, self.output.read_bytes())
 
+    def test_invalid_versions_preserve_output_even_with_python_optimized(self):
+        self.seed_output()
+        path = self.root / 'extension/manifest.json'
+        manifest = json.loads(path.read_text())
+        invalid = ['.', '1..2', '.1', '1.', '1.2.3.4.5', '65536',
+                   '01.2', '1.00', '0', '0.0.0.0', '', '../escape', 12, None]
+        for optimized in (False, True):
+            for version in invalid:
+                with self.subTest(version=version, optimized=optimized):
+                    manifest['version'] = version
+                    path.write_text(json.dumps(manifest))
+                    result = self.build(optimized=optimized)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assert_preserved()
+
+    def test_valid_version_boundaries(self):
+        path = self.root / 'extension/manifest.json'
+        manifest = json.loads(path.read_text())
+        for version in ('1', '0.1', '1.2.3.4', '65535.65535.65535.65535'):
+            with self.subTest(version=version):
+                manifest['version'] = version
+                path.write_text(json.dumps(manifest))
+                result = self.build()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                output = self.root / 'dist' / f'macinacookie-chrome-{version}.zip'
+                with zipfile.ZipFile(output) as package:
+                    self.assertEqual(json.loads(package.read('manifest.json'))['version'], version)
+
     def test_missing_file_preserves_existing_package(self):
         self.seed_output()
         (self.root / 'extension/service-worker.js').unlink()

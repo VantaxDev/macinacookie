@@ -17,11 +17,24 @@
       <a class="nav-link" href="#settings"><span aria-hidden="true">◷</span> Regole di pulizia</a>
       <a class="nav-link" href="#manual"><span aria-hidden="true">▤</span> Pulizia manuale</a>
     </nav>
-    <div class="sidebar-note"><span class="privacy-symbol" aria-hidden="true">✓</span><strong>I tuoi dati restano qui.</strong><p>Nessun account. Nessun invio di dati. Solo un po’ di spazio per respirare.</p><span class="version-label">ESTENSIONE PER FIREFOX</span></div>
+    <div class="sidebar-note"><span class="privacy-symbol" aria-hidden="true">✓</span><strong>I tuoi dati restano qui.</strong><p>Nessun account. Nessun invio di dati. Solo un po’ di spazio per respirare.</p><span class="version-label">ESTENSIONE PER CHROME</span></div>
   </aside>
 
   <main id="main">
     <header class="topbar"><span class="eyebrow">MENO BRICIOLE, PIÙ ORDINE</span><span id="mode-badge" class="pill"><span class="status-dot"></span> Caricamento</span></header>
+    <section id="consent-panel" class="rule-panel consent-panel" aria-labelledby="consent-title">
+      <h2 id="consent-title">Osservazione dei cookie: scegli tu</h2>
+      <details id="consent-details" open><summary>Dati trattati e controlli disponibili · informativa versione 1</summary>
+        <p>Per osservare i cookie, Macinacookie legge domini, nomi, percorsi, partizioni e valori, anche di cookie HttpOnly o di autenticazione potenzialmente sensibili. I valori sono usati solo in memoria per calcolare impronte di confronto: non vengono mostrati o salvati come valori grezzi.</p>
+        <p>Tutto avviene nel profilo locale, senza invii a sviluppatore o terzi, account o telemetria. In storage.local restano metadati, date di prima osservazione, impronte SHA-256, regole e ultimo esito. Sono dati sensibili, non anonimi e non cifrati dall’applicazione.</p>
+        <p>Il ledger non ha una scadenza generale: i record assenti vengono rimossi dopo una scansione riuscita o un evento elaborato. Le impostazioni restano finché le cambi o rimuovi i dati dell’estensione. Le anteprime sono in storage.session, utilizzabili per 10 minuti; la scadenza non garantisce la rimozione fisica immediata.</p>
+        <p>Puoi disattivare l’osservazione qui in ogni momento: si fermano nuove letture e pulizie, senza cancellare cookie o storico. Le chiamate già inviate a Chrome non possono essere annullate; i risultati tardivi vengono ignorati. Per eliminare i dati locali puoi rimuovere l’estensione da Chrome, perdendo lo storico.</p>
+        <p>Attivare l’osservazione <strong>non attiva la pulizia automatica</strong>. Per quella serve una scelta separata nelle regole. Cancellare cookie può disconnetterti dai siti e non è annullabile.</p>
+      </details>
+      <p id="consent-state" role="status">Inattiva: nessun cookie viene letto prima della tua scelta.</p>
+      <div class="button-group"><button id="activate-observation" class="button button-primary" type="button" disabled>Attiva osservazione cookie</button><button id="decline-observation" class="button button-secondary" type="button">Rimani inattivo</button><button id="revoke-observation" class="button button-secondary" type="button" hidden>Disattiva osservazione</button></div>
+    </section>
+
     <section id="overview" class="overview" aria-labelledby="page-title">
       <div class="hero-copy"><p class="eyebrow accent">BENVENUTO IN MACINACOOKIE</p><h1 id="page-title">Un cookie alla volta.<br><span>Il controllo torna a te.</span></h1><p class="hero-description">Scegli quanto conservare i cookie e lascia andare quelli più vecchi. Con calma, o in automatico.</p></div>
       <div class="cookie-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="crumb crumb-one"></div><div class="crumb crumb-two"></div><div class="crumb crumb-three"></div><img src="icons/cookie.svg" width="144" height="144" alt=""><span class="art-label">FRESCHEZZA SOTTO CONTROLLO</span></div>
