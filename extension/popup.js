@@ -46,13 +46,14 @@
           ? `Prossima pulizia: ${date.format(new Date(data.nextRunAt))}, con Chrome aperto.`
           : `Conservazione: ${data.settings.maxAgeDays} ${data.settings.maxAgeDays === 1 ? "giorno" : "giorni"}. Sei tu a decidere quando fare pulizia.`;
     } catch (error) {
+      if (ticket !== viewEpoch) return;
       $("popup-error").textContent = error.message || "Impossibile leggere i cookie. Riprova tra un momento.";
       $("popup-error").hidden = false;
       $("popup-retry").hidden = false;
       $("popup-mode").textContent = "Lettura non disponibile";
       $("popup-next").textContent = "Puoi aprire la pagina completa per gestire le preferenze.";
     } finally {
-      $("popup-stats").setAttribute("aria-busy", "false");
+      if (ticket === viewEpoch) $("popup-stats").setAttribute("aria-busy", "false");
     }
   }
 
