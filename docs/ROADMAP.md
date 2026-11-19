@@ -1,5 +1,17 @@
 # Priorità di sviluppo
 
+## In revisione — lettura non disponibile nel popup (19 novembre, slice 3)
+
+Un fallimento corrente di GET_STATUS ora elimina conteggi precedenti, classe
+visiva dell'automatico attivo e vecchio avviso: sono dati non più verificabili,
+non una revoca di consenso. Restano errore di lettura e Riprova. Il successivo
+successo ripristina conteggi/stato; un errore obsoleto non cancella la nuova vista.
+Il messaggio indipendente di apertura dashboard rimane intatto.
+
+`node --test tests/popup-unavailable.test.js`: reject e ok:false falliscono sulla
+base; con il fix 3/3 passano, anche sullo ZIP estratto. Nessun replay delle suite
+precedenti. Sono fixture DOM/API, non prove di rendering o screen reader.
+
 ## In revisione — recupero apertura dashboard (19 novembre, slice 2)
 
 Se sia openOptionsPage sia il fallback tabs.create falliscono, il messaggio di
