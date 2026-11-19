@@ -66,6 +66,7 @@
     const button = $("open-dashboard");
     if (button.disabled) return;
     button.disabled = true;
+    $("popup-open-error").hidden = true;
     try {
       try {
         await chrome.runtime.openOptionsPage();
@@ -74,8 +75,8 @@
       }
       window.close();
     } catch (error) {
-      $("popup-error").textContent = error.message || "Non è stato possibile aprire Macinacookie.";
-      $("popup-error").hidden = false;
+      $("popup-open-error").textContent = error.message || "Non è stato possibile aprire Macinacookie.";
+      $("popup-open-error").hidden = false;
     } finally { button.disabled = false; }
   });
   chrome.storage.onChanged.addListener((changes, area) => {
