@@ -55,6 +55,11 @@
       $("popup-error").hidden = false;
       $("popup-retry").hidden = false;
       $("popup-mode").textContent = "Lettura non disponibile";
+      $("popup-mode").classList.remove("is-active");
+      $("popup-total").textContent = "—";
+      $("popup-eligible").textContent = "—";
+      $("popup-warning").hidden = true;
+      $("popup-warning").textContent = "";
       $("popup-next").textContent = "Puoi aprire la pagina completa per gestire le preferenze.";
     } finally {
       if (ticket === viewEpoch) $("popup-stats").setAttribute("aria-busy", "false");
