@@ -5,6 +5,16 @@
   const number = new Intl.NumberFormat("it-IT");
   const date = new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "short" });
 
+  function showInactive(consent) {
+    $("popup-mode").textContent = "Osservazione inattiva";
+    $("popup-mode").classList.remove("is-active");
+    $("popup-total").textContent = "—";
+    $("popup-eligible").textContent = "—";
+    $("popup-next").textContent = "Apri Macinacookie per leggere l’informativa e scegliere se attivare l’osservazione.";
+    $("popup-warning").hidden = !consent?.warning;
+    $("popup-warning").textContent = consent?.warning || "";
+  }
+
   let viewEpoch = 0;
   async function load() {
     const ticket = ++viewEpoch;
@@ -17,13 +27,7 @@
       if (!response?.ok) throw new Error(response?.error || "Chrome non ha risposto.");
       const data = response.data;
       if (!data.consent?.active) {
-        $("popup-mode").textContent = "Osservazione inattiva";
-        $("popup-mode").classList.remove("is-active");
-        $("popup-total").textContent = "—";
-        $("popup-eligible").textContent = "—";
-        $("popup-next").textContent = "Apri Macinacookie per leggere l’informativa e scegliere se attivare l’osservazione.";
-        $("popup-warning").hidden = !data.consent?.warning;
-        $("popup-warning").textContent = data.consent?.warning || "";
+        showInactive(data.consent);
         return;
       }
       const warning = data.warning || data.lastRun?.error;
@@ -75,7 +79,12 @@
     } finally { button.disabled = false; }
   });
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.macinacookieConsent) load();
+    if (area === "local" && changes.macinacookieConsent) {
+      const proof = changes.macinacookieConsent.newValue;
+      // Clear the old view immediately; a worker refresh can be slow or fail.
+      if (proof?.accepted !== true || proof?.version !== 1 || typeof proof?.autoAuthorized !== "boolean" || Object.keys(proof).length !== 3) showInactive();
+      load();
+    }
   });
   load();
 })();
