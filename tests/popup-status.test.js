@@ -20,7 +20,7 @@ function popup() {
     chrome:{runtime:{sendMessage:()=>new Promise((resolve,reject)=>pending.push({resolve,reject}))},
       storage:{onChanged:{addListener:f=>{changed=f;}}}}, window:{close(){}}
   });
-  return {element,pending,change:()=>changed({macinacookieConsent:{newValue:{accepted:false}}},'local')};
+  return {element,pending,change:(proof,area='local')=>changed({macinacookieConsent:{newValue:proof}},area)};
 }
 const tick = () => new Promise(resolve=>setImmediate(resolve));
 const inactive = {ok:true,data:{consent:{active:false}}};
@@ -52,4 +52,44 @@ test('current failure remains visible and retry can recover',async()=>{
   p.pending[1].resolve(inactive); await tick();
   assert.equal(p.element('popup-error').hidden,true);
   assert.equal(p.element('popup-mode').textContent,'Osservazione inattiva');
+});
+
+const active = {ok:true,data:{consent:{active:true},stats:{total:42,eligible:7},
+  hasPermissions:true,scanAvailable:true,settings:{autoEnabled:true,maxAgeDays:30},
+  nextRunAt:Date.now()+60000,warning:'old scan warning'}};
+for (const proof of [{accepted:false}, undefined, {accepted:true,version:2,autoAuthorized:false},
+  {accepted:true,version:1}, {accepted:true,version:1,autoAuthorized:false,extra:true}]) {
+  test(`external invalid consent clears visible data synchronously: ${JSON.stringify(proof)}`,async()=>{
+    const p=popup();p.pending[0].resolve(active);await tick();
+    assert.equal(p.element('popup-total').textContent,'42');
+    p.change(proof);
+    assert.equal(p.element('popup-total').textContent,'—');
+    assert.equal(p.element('popup-eligible').textContent,'—');
+    assert.equal(p.element('popup-mode').textContent,'Osservazione inattiva');
+    assert.equal(p.element('popup-warning').hidden,true);
+    assert.doesNotMatch(p.element('popup-next').textContent,/Prossima pulizia/);
+    // A failed refresh must not bring back the previous cookie statistics.
+    p.pending[1].reject(Error('worker unavailable'));await tick();
+    assert.equal(p.element('popup-total').textContent,'—');
+    assert.equal(p.element('popup-eligible').textContent,'—');
+  });
+}
+test('valid consent updates and nonlocal changes do not clear current statistics',async()=>{
+  const p=popup();p.pending[0].resolve(active);await tick();
+  p.change({accepted:false},'session');
+  assert.equal(p.pending.length,1);
+  assert.equal(p.element('popup-total').textContent,'42');
+  p.change({accepted:true,version:1,autoAuthorized:false});
+  assert.equal(p.element('popup-total').textContent,'42');
+  p.pending[1].resolve(inactive);await tick();
+  assert.equal(p.element('popup-total').textContent,'—');
+});
+test('revocation during initial load clears view and stale active success stays ignored',async()=>{
+  const p=popup();p.change(null);
+  assert.equal(p.element('popup-mode').textContent,'Osservazione inattiva');
+  p.pending[0].resolve(active);await tick();
+  assert.equal(p.element('popup-total').textContent,'—');
+  assert.equal(p.element('popup-stats').attrs['aria-busy'],'true');
+  p.pending[1].resolve(inactive);await tick();
+  assert.equal(p.element('popup-stats').attrs['aria-busy'],'false');
 });
