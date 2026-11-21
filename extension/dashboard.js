@@ -193,6 +193,14 @@
     return element;
   }
 
+  function partitionContext(row) {
+    if (!row.partitionSite) return "";
+    const ancestor = row.partitionCrossSiteAncestor === true ? "con antenato cross-site"
+      : row.partitionCrossSiteAncestor === false ? "senza antenato cross-site"
+      : "contesto antenati non disponibile";
+    return `Partizione: ${row.partitionSite} · ${ancestor}`;
+  }
+
   function renderRows() {
     const rows = matchingRows();
     const fragment = document.createDocumentFragment();
@@ -203,7 +211,7 @@
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.checked = selected.has(row.id);
-      checkbox.setAttribute("aria-label", `Seleziona ${row.name || "cookie senza nome"} di ${row.domain}, percorso ${row.path}`);
+      checkbox.setAttribute("aria-label", `Seleziona ${row.name || "cookie senza nome"} di ${row.domain}, percorso ${row.path}${row.partitionSite ? `, ${partitionContext(row)}` : ""}`);
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) selected.add(row.id);
         else selected.delete(row.id);
@@ -231,7 +239,7 @@
       const contextCell = document.createElement("td");
       const context = [];
       if (row.storeId && row.storeId !== "0") context.push(row.storeId);
-      if (row.partitionSite) context.push(`Partizione: ${row.partitionSite}`);
+      if (row.partitionSite) context.push(partitionContext(row));
       if (row.firstPartyDomain) context.push(`Sito principale: ${row.firstPartyDomain}`);
       if (row.secure) context.push("Solo HTTPS");
       appendText(contextCell, "span", "context-text", context.join(" · ") || "Standard");

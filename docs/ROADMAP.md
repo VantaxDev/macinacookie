@@ -1,5 +1,22 @@
 # Priorità di sviluppo
 
+## In revisione — scelta dei contesti CHIPS (21 novembre)
+
+Cookie con stesso sito di partizione, nome e percorso ma diverso contesto degli
+antenati apparivano indistinguibili nella tabella e nei nomi accessibili delle
+checkbox. L'anteprima ora espone il discriminante già letto da Chrome; la UI
+mostra «con/senza antenato cross-site», oppure «contesto antenati non disponibile»
+quando Chrome non lo fornisce. Anche il nome accessibile include il sito e il
+contesto. Nessuna deduzione di false da un campo assente.
+
+Regressione: `node --test tests/chips-context.test.js`, due casi FAIL→PASS su
+createApp e dashboard reali con API/DOM sintetici; stessi casi sullo ZIP estratto.
+Identità, selettori e cancellazione invariati; nessun valore cookie aggiunto alla
+UI. I test cron del 20/21 restano copertura locale storica (62/62), non rieseguita.
+
+Prossimo: verifica reale della comprensibilità e degli annunci assistivi dei
+contesti, solo in ambiente temporaneo autorizzato; sospensione reale ancora aperta.
+
 ## In revisione — lettura non disponibile nel popup (19 novembre, slice 3)
 
 Un fallimento corrente di GET_STATUS ora elimina conteggi precedenti, classe

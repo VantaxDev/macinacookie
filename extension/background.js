@@ -321,6 +321,7 @@
       return {
         id: entry.record.id, domain: cookie.domain, name: cookie.name, path: cookie.path,
         storeId: cookie.storeId, partitionSite: cookie.partitionKey?.topLevelSite || "",
+        partitionCrossSiteAncestor: typeof cookie.partitionKey?.hasCrossSiteAncestor === "boolean" ? cookie.partitionKey.hasCrossSiteAncestor : null,
         firstPartyDomain: cookie.firstPartyDomain || "", firstSeenAt: entry.record.firstSeenAt,
         ageDays: Math.max(0, (at - entry.record.firstSeenAt) / Core.DAY_MS),
         session: Boolean(cookie.session), secure: Boolean(cookie.secure)
